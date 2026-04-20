@@ -3,32 +3,45 @@ import cors from 'cors'
 
 export const app = express()
 
-// ✅ Parse origins from ENV
-const allowedOrigins = (process.env.CORS_ORIGIN || "")
+// CORS
+// - Render/Vercel deployments often fail if `CORS_ORIGIN` isn't set.
+// - We keep a safe default allowlist for local dev + your known production frontend.
+const envOrigins = (process.env.CORS_ORIGIN || '')
   .split(',')
-  .map(o => o.trim())
+  .map((o) => o.trim())
   .filter(Boolean)
 
-// ✅ Proper CORS config
-app.use(cors({
-  origin: function (origin, callback) {
-    // allow requests without origin (Postman, mobile apps)
-    if (!origin) return callback(null, true)
+const defaultOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'https://baskaro-frontend.vercel.app',
+]
 
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true)
-    } else {
-      return callback(new Error(`CORS blocked: ${origin}`))
-    }
-  },
-  credentials: true
-}))
+const allowedOrigins = new Set([...defaultOrigins, ...envOrigins])
 
-// ✅ Handle preflight properly
-app.options('*', cors({
-  origin: allowedOrigins,
-  credentials: true
-}))
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true // curl/Postman/mobile apps
+
+  if (allowedOrigins.size === 0) return true // fail-open if misconfigured
+
+  if (allowedOrigins.has(origin)) return true
+
+  // Allow Vercel preview deployments for the same project
+  // e.g. https://baskaro-frontend-git-branch-username.vercel.app
+  if (/^https:\/\/baskaro-frontend[-\w]*\.vercel\.app$/.test(origin)) return true
+
+  return false
+}
+
+const corsOptions = {
+  origin: (origin, callback) => callback(null, isAllowedOrigin(origin)),
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}
+
+app.use(cors(corsOptions))
+app.options('*', cors(corsOptions))
 
 app.use(express.json({ limit: '6mb' }))
 
