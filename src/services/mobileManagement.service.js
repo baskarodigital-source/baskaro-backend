@@ -15,6 +15,50 @@ function slugify(input) {
   return s
 }
 
+/** 24-char hex → Mongo `_id`; anything else (e.g. `samsung-s25-edge`) → lookup by `slug`. */
+function isPhoneModelObjectIdParam(param) {
+  const s = String(param || '').trim()
+  return s.length === 24 && /^[a-fA-F0-9]+$/i.test(s)
+}
+
+/** URL slugs that omit `galaxy` / `apple` still need to match admin-generated slugs. */
+function phoneModelSlugCandidates(raw) {
+  const s = String(raw || '').trim().toLowerCase()
+  const out = []
+  const seen = new Set()
+  const push = (slug) => {
+    if (!slug || seen.has(slug)) return
+    seen.add(slug)
+    out.push(slug)
+  }
+  push(s)
+  if (s.startsWith('samsung-') && !s.startsWith('samsung-galaxy-')) {
+    push(`samsung-galaxy-${s.slice('samsung-'.length)}`)
+  }
+  if (s.startsWith('iphone-')) {
+    push(`apple-iphone-${s.slice('iphone-'.length)}`)
+  }
+  return out
+}
+
+const phoneModelPopulate = [
+  { path: 'brandId', select: 'name slug' },
+  { path: 'deviceId', select: 'name slug' },
+]
+
+async function findPhoneModelByIdOrSlugPopulated(raw) {
+  const trimmed = String(raw || '').trim()
+  if (!trimmed) return null
+  if (isPhoneModelObjectIdParam(trimmed)) {
+    return PhoneModel.findById(trimmed).populate(phoneModelPopulate)
+  }
+  for (const slug of phoneModelSlugCandidates(trimmed)) {
+    const doc = await PhoneModel.findOne({ slug }).populate(phoneModelPopulate)
+    if (doc) return doc
+  }
+  return null
+}
+
 // ==================== BRAND SERVICES ====================
 
 // Get all brands
@@ -191,14 +235,18 @@ export async function getAllPhoneModels({ brandId, deviceId, page = 1, limit = 1
   return formatPaginationResponse(models, total, page, limit)
 }
 
-// Get phone model by ID
+// Get phone model by Mongo _id or by slug (URL-friendly id)
 export async function getPhoneModelById(modelId) {
-  const model = await PhoneModel.findById(modelId).populate('brandId', 'name slug').populate('deviceId', 'name slug')
-  
+  const raw = String(modelId || '').trim()
+  if (!raw) {
+    throw new AppError('model id is required', 400, errorCodes.BAD_REQUEST)
+  }
+  const model = await findPhoneModelByIdOrSlugPopulated(raw)
+
   if (!model) {
     throw new AppError('Phone model not found', 404, errorCodes.NOT_FOUND)
   }
-  
+
   return model
 }
 
@@ -243,28 +291,39 @@ export async function createPhoneModel(modelData) {
   return model
 }
 
-// Update phone model
+// Update phone model (by Mongo _id or slug)
 export async function updatePhoneModel(modelId, updateData) {
-  const model = await PhoneModel.findByIdAndUpdate(
-    modelId,
-    updateData,
-    { new: true, runValidators: true }
-  ).populate('brandId', 'name slug').populate('deviceId', 'name slug')
-  
+  const raw = String(modelId || '').trim()
+  if (!raw) {
+    throw new AppError('model id is required', 400, errorCodes.BAD_REQUEST)
+  }
+  const existing = await findPhoneModelByIdOrSlugPopulated(raw)
+  if (!existing) {
+    throw new AppError('Phone model not found', 404, errorCodes.NOT_FOUND)
+  }
+  const model = await PhoneModel.findOneAndUpdate({ _id: existing._id }, updateData, {
+    new: true,
+    runValidators: true,
+  }).populate(phoneModelPopulate)
+
   if (!model) {
     throw new AppError('Phone model not found', 404, errorCodes.NOT_FOUND)
   }
-  
+
   return model
 }
 
-// Delete phone model
+// Delete phone model (by Mongo _id or slug)
 export async function deletePhoneModel(modelId) {
-  const model = await PhoneModel.findByIdAndDelete(modelId)
-  
-  if (!model) {
+  const raw = String(modelId || '').trim()
+  if (!raw) {
+    throw new AppError('model id is required', 400, errorCodes.BAD_REQUEST)
+  }
+  const existing = await findPhoneModelByIdOrSlugPopulated(raw)
+  if (!existing) {
     throw new AppError('Phone model not found', 404, errorCodes.NOT_FOUND)
   }
-  
+  await PhoneModel.findOneAndDelete({ _id: existing._id })
+
   return { success: true, message: 'Phone model deleted successfully' }
 }

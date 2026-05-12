@@ -1,6 +1,6 @@
 # Baskaro Backend - Production Ready Mobile Resale Platform
 
-A comprehensive, scalable, and production-ready backend for a mobile resale platform (similar to Cashify) built with Node.js, Express, and MongoDB.
+A comprehensive, scalable, and production-ready backend for the Baskaro mobile resale platform built with Node.js, Express, and MongoDB.
 
 ## 🎯 Features
 

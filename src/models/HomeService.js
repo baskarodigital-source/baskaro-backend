@@ -1,6 +1,6 @@
 import mongoose from 'mongoose'
 
-/** Homepage "Our Services" items. */
+/** Homepage “Our Services” items — stored in MongoDB collection `services`. */
 const homeServiceSchema = new mongoose.Schema(
   {
     label: { type: String, required: true, trim: true, maxlength: 60 },
@@ -10,7 +10,7 @@ const homeServiceSchema = new mongoose.Schema(
     sortOrder: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
   },
-  { timestamps: true },
+  { timestamps: true, collection: 'services' },
 )
 
 homeServiceSchema.index({ isActive: 1, sortOrder: 1 })

@@ -1,9 +1,56 @@
 import mongoose from 'mongoose'
 import { HomeService } from '../models/HomeService.js'
+import { DEFAULT_HOME_SERVICES } from '../constants/defaultHomeServices.js'
 import { AppError, errorCodes } from '../utils/errorHandler.js'
 import { formatPaginationResponse } from '../utils/helpers.js'
 
+/** One-time move from legacy `homeservices` collection → `services`. */
+async function migrateLegacyHomeServicesIfNeeded() {
+  if ((await HomeService.countDocuments({})) > 0) return
+  const db = mongoose.connection.db
+  const legacy = 'homeservices'
+  const cols = await db.listCollections({ name: legacy }).toArray()
+  if (!cols.length) return
+  const raw = await db.collection(legacy).find({}).toArray()
+  if (!raw.length) return
+  const payload = raw.map((d) => ({
+    _id: d._id,
+    label: d.label,
+    path: d.path,
+    imageUrl: d.imageUrl ?? '',
+    sortOrder: d.sortOrder ?? 0,
+    isActive: d.isActive !== false,
+    createdAt: d.createdAt,
+    updatedAt: d.updatedAt,
+  }))
+  try {
+    await HomeService.insertMany(payload)
+  } catch {
+    /* ignore duplicate / validation races */
+  }
+}
+
+async function ensureDefaultHomeServicesIfEmpty() {
+  await migrateLegacyHomeServicesIfNeeded()
+  const count = await HomeService.countDocuments({})
+  if (count > 0) return
+  try {
+    await HomeService.insertMany(
+      DEFAULT_HOME_SERVICES.map((s) => ({
+        label: s.label,
+        path: s.path,
+        imageUrl: s.imageUrl,
+        sortOrder: s.sortOrder,
+        isActive: true,
+      })),
+    )
+  } catch {
+    /* ignore race on first concurrent requests */
+  }
+}
+
 export async function listActiveServices() {
+  await ensureDefaultHomeServicesIfEmpty()
   return HomeService.find({ isActive: true }).sort({ sortOrder: 1, createdAt: -1 }).lean()
 }
 

@@ -12,7 +12,6 @@ const phoneModelSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'BrandDevice',
       default: null,
-      index: true,
     },
     modelName: { type: String, required: true, trim: true },
     slug: { type: String, required: true, trim: true, lowercase: true },
