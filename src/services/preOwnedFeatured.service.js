@@ -79,8 +79,13 @@ function mapRow(row) {
   const imageUrl = resolvePublicImageUrl(rawImg)
 
   const id = String(row._id)
+  const modelId = String(model._id || '').trim()
   const viewPath =
-    slug && id ? `/buy-pre-owned/product/phone/${encodeURIComponent(slug)}/${encodeURIComponent(id)}` : ''
+    slug && id
+      ? `/buy-pre-owned/product/phone/${encodeURIComponent(slug)}/${encodeURIComponent(id)}${
+          modelId ? `?modelId=${encodeURIComponent(modelId)}` : ''
+        }`
+      : ''
 
   return {
     id,
@@ -94,5 +99,6 @@ function mapRow(row) {
     conditionLabel: gradeLabel(row.conditionGrade),
     viewPath,
     modelSlug: slug,
+    modelId: modelId || null,
   }
 }
