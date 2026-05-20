@@ -19,6 +19,10 @@ for (const p of candidatePaths) {
 
 const PORT = process.env.PORT || 4000
 
+// Temporary: verify env is loaded before Mongo connect
+dotenv.config()
+console.log(process.env.MONGODB_URI)
+
 await connectDb()
 await RibbonCategory.syncIndexes()
 
