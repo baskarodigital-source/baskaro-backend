@@ -17,6 +17,8 @@ const defaultOrigins = [
   'http://127.0.0.1:3000',
   'http://127.0.0.1:5173',
   'https://baskaro-frontend.vercel.app',
+  'https://baskaro.com',
+  'https://www.baskaro.com'
 ]
 
 const allowedOrigins = new Set([...defaultOrigins, ...envOrigins])
