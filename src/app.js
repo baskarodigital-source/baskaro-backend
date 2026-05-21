@@ -11,6 +11,11 @@ const envOrigins = (process.env.CORS_ORIGIN || '')
   .map((o) => o.trim())
   .filter(Boolean)
 
+const corsAllowAll =
+  process.env.CORS_ALLOW_ALL === 'true' ||
+  envOrigins.includes('*') ||
+  process.env.CORS_ORIGIN === '*'
+
 const defaultOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
@@ -21,7 +26,13 @@ const defaultOrigins = [
   'https://www.baskaro.com'
 ]
 
-const allowedOrigins = new Set([...defaultOrigins, ...envOrigins])
+const allowedOrigins = new Set([
+  ...defaultOrigins,
+  ...envOrigins.filter((o) => o !== '*'),
+])
+
+/** Any *.baskaro.com over HTTPS (apex, www, subdomains) */
+const BASKARO_SITE_ORIGIN = /^https:\/\/([\w-]+\.)*baskaro\.com$/
 
 /** Vite / dev server on LAN IP (phone on Wi‑Fi, --host) — same machine as API on 127.0.0.1 */
 const LAN_DEV_ORIGIN =
@@ -29,25 +40,25 @@ const LAN_DEV_ORIGIN =
 
 const isAllowedOrigin = (origin) => {
   if (!origin) return true // curl/Postman/mobile apps
-
-  if (allowedOrigins.size === 0) return true // fail-open if misconfigured
-
+  if (corsAllowAll) return true
   if (allowedOrigins.has(origin)) return true
-
-  // Allow Vercel preview deployments for the same project
-  // e.g. https://baskaro-frontend-git-branch-username.vercel.app
+  if (BASKARO_SITE_ORIGIN.test(origin)) return true
   if (/^https:\/\/baskaro-frontend[-\w]*\.vercel\.app$/.test(origin)) return true
-
   if (LAN_DEV_ORIGIN.test(origin)) return true
-
   return false
 }
 
 const corsOptions = {
-  origin: (origin, callback) => callback(null, isAllowedOrigin(origin)),
+  origin(origin, callback) {
+    if (!origin) return callback(null, true)
+    if (isAllowedOrigin(origin)) return callback(null, origin)
+    console.warn(`[CORS] Blocked origin: ${origin}`)
+    return callback(null, false)
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 204,
 }
 
 app.use(cors(corsOptions))
