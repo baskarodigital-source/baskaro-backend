@@ -1,7 +1,9 @@
 import mongoose from 'mongoose'
 import { FlashDeal } from '../models/FlashDeal.js'
+import { CLOUDINARY_FOLDERS } from '../constants/cloudinaryFolders.js'
 import { AppError, errorCodes } from '../utils/errorHandler.js'
 import { formatPaginationResponse } from '../utils/helpers.js'
+import { persistImageToCloudinary } from '../utils/persistImageToCloudinary.js'
 
 function validatePrices(mrpInr, salePriceInr) {
   const mrp = Number(mrpInr)
@@ -43,9 +45,13 @@ export async function getFlashDealById(id) {
 export async function createFlashDeal(body) {
   const { title, imageUrl, mrpInr, salePriceInr, sortOrder = 0, isActive = true, linkUrl = '' } = body
   validatePrices(mrpInr, salePriceInr)
+  const storedImage = await persistImageToCloudinary(
+    String(imageUrl).trim(),
+    CLOUDINARY_FOLDERS.flashDeals,
+  )
   const deal = await FlashDeal.create({
     title: String(title).trim(),
-    imageUrl: String(imageUrl).trim(),
+    imageUrl: storedImage,
     mrpInr: Number(mrpInr),
     salePriceInr: Number(salePriceInr),
     sortOrder: Number(sortOrder) || 0,
@@ -68,7 +74,12 @@ export async function updateFlashDeal(id, body) {
 
   const update = {}
   if (body.title != null) update.title = String(body.title).trim()
-  if (body.imageUrl != null) update.imageUrl = String(body.imageUrl).trim()
+  if (body.imageUrl != null) {
+    const raw = String(body.imageUrl).trim()
+    update.imageUrl = raw
+      ? await persistImageToCloudinary(raw, CLOUDINARY_FOLDERS.flashDeals)
+      : ''
+  }
   if (body.mrpInr != null) update.mrpInr = mrp
   if (body.salePriceInr != null) update.salePriceInr = sale
   if (body.sortOrder != null) update.sortOrder = Number(body.sortOrder)

@@ -1,6 +1,7 @@
 import {
   emailLogin,
   emailRegister,
+  registerPhoneAndRequestOtp,
   requestOtpForPhone,
   updateProfile,
   verifyPhoneOtp,
@@ -14,6 +15,13 @@ const ADMIN_ROLES = new Set(['admin', 'SUPER_ADMIN', 'MANAGER', 'SUPPORT'])
 export async function requestOtp(req, res) {
   const { phone } = req.body || {}
   const result = await requestOtpForPhone({ phone })
+  if (result.error) return res.status(400).json(result)
+  return res.json(result)
+}
+
+export async function registerPhone(req, res) {
+  const { name, phone } = req.body || {}
+  const result = await registerPhoneAndRequestOtp({ name, phone })
   if (result.error) return res.status(400).json(result)
   return res.json(result)
 }

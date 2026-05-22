@@ -17,7 +17,7 @@ const corsAllowAll =
   process.env.CORS_ORIGIN === '*'
 
 const defaultOrigins = [
-  'http://localhost:3000',
+  'http://localhost:3001',
   'http://localhost:5173',
   'http://127.0.0.1:3000',
   'http://127.0.0.1:5173',
@@ -96,6 +96,7 @@ import homeServicesRouter from './routes/homeServices.js'
 import offersRouter from './routes/offers.js'
 import servicePageContentRouter from './routes/servicePageContent.js'
 import preOwnedFeaturedRouter from './routes/preOwnedFeatured.js'
+import uploadsRouter from './routes/uploads.js'
 
 app.use('/api/catalog', catalogRouter)
 app.use('/api/auth', authRouter)
@@ -122,6 +123,7 @@ app.use('/api/home-services', homeServicesRouter)
 app.use('/api/offers', offersRouter)
 app.use('/api/service-page', servicePageContentRouter)
 app.use('/api/pre-owned', preOwnedFeaturedRouter)
+app.use('/api/uploads', uploadsRouter)
 
 // Error handler
 import { errorHandler } from './utils/errorHandler.js'

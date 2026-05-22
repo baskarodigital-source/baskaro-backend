@@ -64,9 +64,24 @@ PORT=4000
 MONGODB_URI=mongodb://127.0.0.1:27017/baskaro
 JWT_SECRET=your-super-secret-key-change-in-production
 CORS_ORIGIN=http://localhost:5173,http://localhost:3000
+
+# Cloudinary (admin image uploads — services, brands, flash deals, etc.)
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
 ```
 
-4. **Start MongoDB**
+### Cloudinary image storage
+
+1. Create a free account at [Cloudinary](https://cloudinary.com/) and copy **Cloud name**, **API Key**, and **API Secret** into `backend/.env`.
+2. Restart the API server and check the console for `[Cloudinary] connected — API ping OK`.
+3. Public check: `GET http://localhost:4000/api/uploads/status` → `{ "configured": true, "connected": true, "cloudName": "..." }`.
+4. Admin debug ping: `GET /api/uploads/ping` (Bearer admin token) re-runs the check and logs the result.
+5. Admin uploads: `POST /api/uploads/image` (Bearer admin token). Images go to folders such as `baskaro/home-services`, `baskaro/brands`, `baskaro/flash-deals`.
+
+The frontend admin panels (Services, Offers, Categories/Brands/Models) upload via `src/lib/storeImageUpload.js` and save the returned HTTPS URL in MongoDB.
+
+5. **Start MongoDB**
 ```bash
 # Windows (if installed as service)
 net start MongoDB

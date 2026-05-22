@@ -1,8 +1,10 @@
 import mongoose from 'mongoose'
 import { HomeService } from '../models/HomeService.js'
 import { DEFAULT_HOME_SERVICES } from '../constants/defaultHomeServices.js'
+import { CLOUDINARY_FOLDERS } from '../constants/cloudinaryFolders.js'
 import { AppError, errorCodes } from '../utils/errorHandler.js'
 import { formatPaginationResponse } from '../utils/helpers.js'
+import { persistImageToCloudinary } from '../utils/persistImageToCloudinary.js'
 
 /** One-time move from legacy `homeservices` collection → `services`. */
 async function migrateLegacyHomeServicesIfNeeded() {
@@ -68,9 +70,12 @@ export async function listAllServices({ page = 1, limit = 100 }) {
 export async function createService(body) {
   const label = String(body?.label || '').trim()
   const path = String(body?.path || '').trim()
-  const imageUrl = String(body?.imageUrl || '').trim()
+  const rawImage = String(body?.imageUrl || '').trim()
   if (!label) throw new AppError('label is required', 400, errorCodes.BAD_REQUEST)
   if (!path) throw new AppError('path is required', 400, errorCodes.BAD_REQUEST)
+  const imageUrl = rawImage
+    ? await persistImageToCloudinary(rawImage, CLOUDINARY_FOLDERS.homeServices)
+    : ''
   const created = await HomeService.create({
     label,
     path,
@@ -91,7 +96,12 @@ export async function updateService(id, body) {
   const update = {}
   if (body.label != null) update.label = String(body.label).trim()
   if (body.path != null) update.path = String(body.path).trim()
-  if (body.imageUrl != null) update.imageUrl = String(body.imageUrl).trim()
+  if (body.imageUrl != null) {
+    const raw = String(body.imageUrl).trim()
+    update.imageUrl = raw
+      ? await persistImageToCloudinary(raw, CLOUDINARY_FOLDERS.homeServices)
+      : ''
+  }
   if (body.sortOrder != null) update.sortOrder = Number(body.sortOrder) || 0
   if (body.isActive != null) update.isActive = Boolean(body.isActive)
 

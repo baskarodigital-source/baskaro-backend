@@ -23,16 +23,25 @@ if (!process.env.MONGODB_URI) {
   process.exit(1)
 }
 
+const REPAIR_PHONE_IMAGE =
+  'https://images.unsplash.com/photo-1598327105666-5b89351aff97?q=80&w=640&auto=format&fit=crop'
+
 const BY_LABEL = {
   'Sell Phone': '/hero/sell.png',
   'Buy Phone': '/hero/buy.png',
   'Find New Phone': '/hero/exchange.png',
   'New Accessories': '/hero/accessories.png',
+  'Repair Phone': REPAIR_PHONE_IMAGE,
 }
 
 await mongoose.connect(process.env.MONGODB_URI)
 const coll = mongoose.connection.db.collection('services')
-const cursor = coll.find({ imageUrl: { $regex: /cashify/i } })
+const cursor = coll.find({
+  $or: [
+    { imageUrl: { $regex: /cashify/i } },
+    { imageUrl: { $regex: /erepaircafe/i } },
+  ],
+})
 let n = 0
 for await (const doc of cursor) {
   const next = BY_LABEL[doc.label] || '/hero/sell.png'

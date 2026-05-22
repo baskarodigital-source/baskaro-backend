@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { connectDb } from './src/config/db.js'
+import { logCloudinaryStatus } from './src/config/cloudinary.js'
 import { app } from './src/app.js'
 import { RibbonCategory } from './src/models/RibbonCategory.js'
 
@@ -25,6 +26,8 @@ console.log(process.env.MONGODB_URI)
 
 await connectDb()
 await RibbonCategory.syncIndexes()
+
+await logCloudinaryStatus({ ping: true })
 
 app.listen(PORT, () => {
   console.log(`API server listening on port ${PORT}`)

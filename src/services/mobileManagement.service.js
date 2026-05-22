@@ -2,8 +2,37 @@ import mongoose from 'mongoose'
 import { Brand } from '../models/Brand.js'
 import { BrandDevice } from '../models/BrandDevice.js'
 import { PhoneModel } from '../models/PhoneModel.js'
+import { CLOUDINARY_FOLDERS } from '../constants/cloudinaryFolders.js'
 import { AppError, errorCodes } from '../utils/errorHandler.js'
 import { getPagination, formatPaginationResponse } from '../utils/helpers.js'
+import { persistImageToCloudinary } from '../utils/persistImageToCloudinary.js'
+
+async function persistBrandPayload(data) {
+  const next = { ...data }
+  if (next.imageUrl != null && String(next.imageUrl).trim()) {
+    next.imageUrl = await persistImageToCloudinary(next.imageUrl, CLOUDINARY_FOLDERS.brands)
+  }
+  return next
+}
+
+async function persistDevicePayload(data) {
+  const next = { ...data }
+  if (next.imageUrl != null && String(next.imageUrl).trim()) {
+    next.imageUrl = await persistImageToCloudinary(next.imageUrl, CLOUDINARY_FOLDERS.devices)
+  }
+  return next
+}
+
+async function persistModelPayload(data) {
+  const next = { ...data }
+  if (next.image != null && String(next.image).trim()) {
+    next.image = await persistImageToCloudinary(next.image, CLOUDINARY_FOLDERS.models)
+  }
+  if (next.imageUrl != null && String(next.imageUrl).trim()) {
+    next.imageUrl = await persistImageToCloudinary(next.imageUrl, CLOUDINARY_FOLDERS.models)
+  }
+  return next
+}
 
 function slugify(input) {
   const s = String(input || '')
@@ -113,15 +142,17 @@ export async function createBrand(brandData) {
     slug = `${preferredSlug}-${i}`
   }
 
-  const brand = await Brand.create({ ...brandData, name, slug })
+  const payload = await persistBrandPayload({ ...brandData, name, slug })
+  const brand = await Brand.create(payload)
   return brand
 }
 
 // Update brand
 export async function updateBrand(brandId, updateData) {
+  const payload = await persistBrandPayload(updateData)
   const brand = await Brand.findByIdAndUpdate(
     brandId,
-    updateData,
+    payload,
     { new: true, runValidators: true }
   )
   
@@ -183,11 +214,13 @@ export async function createBrandDevice(data) {
   const last = await BrandDevice.findOne({ brandId }).sort({ sortOrder: -1 }).lean()
   const sortOrder = (last?.sortOrder ?? -1) + 1
 
-  return BrandDevice.create({ ...data, name, slug, sortOrder })
+  const payload = await persistDevicePayload({ ...data, name, slug, sortOrder })
+  return BrandDevice.create(payload)
 }
 
 export async function updateBrandDevice(deviceId, updateData) {
-  const doc = await BrandDevice.findByIdAndUpdate(deviceId, updateData, { new: true, runValidators: true })
+  const payload = await persistDevicePayload(updateData)
+  const doc = await BrandDevice.findByIdAndUpdate(deviceId, payload, { new: true, runValidators: true })
   if (!doc) throw new AppError('Device not found', 404, errorCodes.NOT_FOUND)
   return doc
 }
@@ -278,12 +311,13 @@ export async function createPhoneModel(modelData) {
     slug = `${preferredSlug}-${i}`
   }
 
-  const model = await PhoneModel.create({
+  const payload = await persistModelPayload({
     ...modelData,
     modelName,
     basePrice,
     slug,
   })
+  const model = await PhoneModel.create(payload)
   await model.populate([
     { path: 'brandId', select: 'name slug' },
     { path: 'deviceId', select: 'name slug' },
@@ -301,7 +335,8 @@ export async function updatePhoneModel(modelId, updateData) {
   if (!existing) {
     throw new AppError('Phone model not found', 404, errorCodes.NOT_FOUND)
   }
-  const model = await PhoneModel.findOneAndUpdate({ _id: existing._id }, updateData, {
+  const payload = await persistModelPayload(updateData)
+  const model = await PhoneModel.findOneAndUpdate({ _id: existing._id }, payload, {
     new: true,
     runValidators: true,
   }).populate(phoneModelPopulate)

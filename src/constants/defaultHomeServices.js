@@ -25,7 +25,7 @@ export const DEFAULT_HOME_SERVICES = [
     label: 'Repair Phone',
     path: '/repair-phone',
     imageUrl:
-      'https://erepaircafe.com/wp-content/uploads/al_opt_content/IMAGE/erepaircafe.com/wp-content/uploads/2025/06/repair-phone.png.bv_resized_mobile.png.bv.webp?bv_host=erepaircafe.com',
+      'https://images.unsplash.com/photo-1598327105666-5b89351aff97?q=80&w=640&auto=format&fit=crop',
     sortOrder: 30,
   },
   {

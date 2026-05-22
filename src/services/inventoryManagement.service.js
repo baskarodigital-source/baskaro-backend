@@ -1,6 +1,8 @@
 import { Inventory } from '../models/Inventory.js'
 import { PhoneModel } from '../models/PhoneModel.js'
+import { CLOUDINARY_FOLDERS } from '../constants/cloudinaryFolders.js'
 import { AppError, errorCodes } from '../utils/errorHandler.js'
+import { persistImagesArray } from '../utils/persistImageToCloudinary.js'
 
 // Add to inventory
 export async function addToInventory(inventoryData) {
@@ -9,11 +11,13 @@ export async function addToInventory(inventoryData) {
   if (!phoneModel) {
     throw new AppError('Phone model not found', 404, errorCodes.NOT_FOUND)
   }
-  
-  const inventory = await Inventory.create({
-    ...inventoryData,
-    brandId: phoneModel.brandId,
-  })
+
+  const data = { ...inventoryData, brandId: phoneModel.brandId }
+  if (Array.isArray(data.images) && data.images.length) {
+    data.images = await persistImagesArray(data.images, CLOUDINARY_FOLDERS.inventory)
+  }
+
+  const inventory = await Inventory.create(data)
   
   return inventory.populate('modelId brandId', 'modelName name slug')
 }

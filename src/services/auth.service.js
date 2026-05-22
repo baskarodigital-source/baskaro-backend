@@ -78,6 +78,31 @@ export async function requestOtpForPhone({ phone }) {
   return { ok: true, otp: code }
 }
 
+export async function registerPhoneAndRequestOtp({ name, phone }) {
+  const normalized = String(phone || '').replace(/\D/g, '')
+  if (normalized.length !== 10) {
+    return { error: 'Phone must be a valid 10-digit number (without country code).' }
+  }
+  const trimmedName = String(name || '').trim()
+  if (!trimmedName) return { error: 'Please enter your name.' }
+
+  const [existingAdmin, existingUser] = await Promise.all([
+    Admin.findOne({ phone: normalized }).lean(),
+    User.findOne({ phone: normalized }).lean(),
+  ])
+  if (existingAdmin || existingUser) {
+    return { error: 'Phone already registered. Please sign in instead.' }
+  }
+
+  await User.create({
+    name: trimmedName,
+    phone: normalized,
+    role: 'user',
+  })
+
+  return requestOtpForPhone({ phone: normalized })
+}
+
 export async function verifyPhoneOtp({ phone, otp }) {
   const normalized = String(phone || '').replace(/\D/g, '')
   const code = String(otp || '')

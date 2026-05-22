@@ -1,5 +1,7 @@
 import { RibbonCategory } from '../models/RibbonCategory.js'
+import { CLOUDINARY_FOLDERS } from '../constants/cloudinaryFolders.js'
 import { AppError, errorCodes } from '../utils/errorHandler.js'
+import { persistImageToCloudinary } from '../utils/persistImageToCloudinary.js'
 
 /** Legacy DB cleanup only — categories are created via admin API, not auto-seeded. */
 async function ensureRibbonIndexes() {
@@ -21,11 +23,15 @@ export async function createRibbonCategory(body) {
   if (!label || !iconKey) {
     throw new AppError('label and iconKey are required', 400, errorCodes.BAD_REQUEST)
   }
+  const rawImage = imageUrl != null && String(imageUrl).trim() ? String(imageUrl).trim() : ''
+  const storedImage = rawImage
+    ? await persistImageToCloudinary(rawImage, CLOUDINARY_FOLDERS.ribbon)
+    : ''
   const doc = await RibbonCategory.create({
     label: String(label).trim(),
     path: path != null ? String(path).trim() : '/marketplace',
     iconKey,
-    imageUrl: imageUrl != null && String(imageUrl).trim() ? String(imageUrl).trim() : '',
+    imageUrl: storedImage,
     sortOrder: Number.isFinite(Number(sortOrder)) ? Number(sortOrder) : 0,
     isActive: isActive !== false,
   })
@@ -37,7 +43,12 @@ export async function updateRibbonCategory(id, body) {
   if (body.label != null) updates.label = String(body.label).trim()
   if (body.path != null) updates.path = String(body.path).trim()
   if (body.iconKey != null) updates.iconKey = body.iconKey
-  if (body.imageUrl !== undefined) updates.imageUrl = body.imageUrl != null ? String(body.imageUrl).trim() : ''
+  if (body.imageUrl !== undefined) {
+    const raw = body.imageUrl != null ? String(body.imageUrl).trim() : ''
+    updates.imageUrl = raw
+      ? await persistImageToCloudinary(raw, CLOUDINARY_FOLDERS.ribbon)
+      : ''
+  }
   if (body.sortOrder != null) updates.sortOrder = Number(body.sortOrder)
   if (body.isActive != null) updates.isActive = Boolean(body.isActive)
 
