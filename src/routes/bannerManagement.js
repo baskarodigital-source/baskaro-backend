@@ -1,11 +1,12 @@
 import { Router } from 'express'
 import { requireAuth, requireAdmin } from '../middleware/auth.js'
+import { cachePublicJson } from '../middleware/cachePublic.js'
 import * as bannerManagementController from '../controllers/bannerManagement.controller.js'
 
 const router = Router()
 
 // Public route to get active banners
-router.get('/', bannerManagementController.getAllBanners)
+router.get('/', cachePublicJson(120), bannerManagementController.getAllBanners)
 router.get('/:bannerId', bannerManagementController.getBannerById)
 
 // Admin-only routes

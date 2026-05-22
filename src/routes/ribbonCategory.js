@@ -1,10 +1,11 @@
 import { Router } from 'express'
 import { requireAuth, requireAdmin } from '../middleware/auth.js'
+import { cachePublicJson } from '../middleware/cachePublic.js'
 import * as ribbonCategoryController from '../controllers/ribbonCategory.controller.js'
 
 const router = Router()
 
-router.get('/', ribbonCategoryController.listPublic)
+router.get('/', cachePublicJson(120), ribbonCategoryController.listPublic)
 
 router.get('/all', requireAuth, requireAdmin, ribbonCategoryController.listAll)
 router.post('/', requireAuth, requireAdmin, ribbonCategoryController.create)

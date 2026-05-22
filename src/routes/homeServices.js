@@ -1,11 +1,12 @@
 import { Router } from 'express'
 import { requireAuth, requireAdmin } from '../middleware/auth.js'
+import { cachePublicJson } from '../middleware/cachePublic.js'
 import * as homeServiceController from '../controllers/homeService.controller.js'
 
 const router = Router()
 
 /** Public: active services for homepage "Our Services" */
-router.get('/', homeServiceController.listPublic)
+router.get('/', cachePublicJson(120), homeServiceController.listPublic)
 
 router.use(requireAuth, requireAdmin)
 
