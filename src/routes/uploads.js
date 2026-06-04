@@ -24,6 +24,7 @@ router.post(
   },
   asyncHandler(uploadController.uploadImageMultipart),
 )
+router.post('/video/signature', asyncHandler(uploadController.getVideoUploadSignature))
 router.post('/video/file', asyncHandler(uploadController.uploadVideoMultipart))
 router.delete('/image', asyncHandler(uploadController.removeImage))
 

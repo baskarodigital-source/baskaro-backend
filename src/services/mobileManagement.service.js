@@ -347,6 +347,90 @@ export async function createPhoneModel(modelData) {
   return model
 }
 
+function buildPhoneModelUpdateFields(updateData, existing) {
+  const out = {}
+  const existingPlain = typeof existing?.toObject === 'function' ? existing.toObject() : existing
+
+  if (updateData.brandId != null && String(updateData.brandId).trim()) {
+    out.brandId = updateData.brandId
+  }
+
+  if (updateData.deviceId !== undefined) {
+    const deviceId = String(updateData.deviceId || '').trim()
+    if (deviceId) {
+      out.deviceId = deviceId
+    } else if (existingPlain?.deviceId) {
+      out.deviceId = existingPlain.deviceId
+    } else {
+      out.deviceId = null
+    }
+  }
+
+  if (updateData.modelName != null) {
+    const modelName = String(updateData.modelName || '').trim()
+    if (!modelName) {
+      throw new AppError('modelName is required', 400, errorCodes.VALIDATION_ERROR)
+    }
+    out.modelName = modelName
+  }
+
+  if (updateData.basePrice != null) {
+    const basePrice = Number(updateData.basePrice)
+    if (!Number.isFinite(basePrice) || basePrice <= 0) {
+      throw new AppError('basePrice must be a positive number', 400, errorCodes.VALIDATION_ERROR)
+    }
+    out.basePrice = basePrice
+    const variants = Array.isArray(existingPlain?.storageVariants) ? existingPlain.storageVariants : []
+    if (variants.length) {
+      out.storageVariants = variants.map((v, idx) => {
+        const row = typeof v?.toObject === 'function' ? v.toObject() : { ...v }
+        return idx === 0 ? { ...row, basePrice } : row
+      })
+    }
+  }
+
+  if (updateData.specifications != null && typeof updateData.specifications === 'object') {
+    out.specifications = updateData.specifications
+  }
+
+  if (updateData.image !== undefined) {
+    const image = String(updateData.image || '').trim()
+    if (image) {
+      out.image = image
+    } else if (!String(existingPlain?.image || '').trim()) {
+      out.image = ''
+    }
+  }
+
+  if (updateData.images !== undefined) {
+    const images = Array.isArray(updateData.images) ? updateData.images.filter(Boolean) : []
+    if (images.length) {
+      out.images = images
+    } else if (!Array.isArray(existingPlain?.images) || !existingPlain.images.length) {
+      out.images = []
+    }
+  }
+
+  if (updateData.videoUrls !== undefined || updateData.videoUrl !== undefined) {
+    const videoUrls = Array.isArray(updateData.videoUrls)
+      ? updateData.videoUrls.filter(Boolean)
+      : updateData.videoUrl
+        ? [updateData.videoUrl]
+        : []
+    if (videoUrls.length) {
+      out.videoUrls = videoUrls
+      out.videoUrl = videoUrls[0]
+    } else if (!String(existingPlain?.videoUrl || '').trim() && !(existingPlain?.videoUrls || []).length) {
+      out.videoUrls = []
+      out.videoUrl = ''
+    }
+  }
+
+  if (updateData.active !== undefined) out.active = Boolean(updateData.active)
+
+  return out
+}
+
 // Update phone model (by Mongo _id or slug)
 export async function updatePhoneModel(modelId, updateData) {
   const raw = String(modelId || '').trim()
@@ -357,15 +441,26 @@ export async function updatePhoneModel(modelId, updateData) {
   if (!existing) {
     throw new AppError('Phone model not found', 404, errorCodes.NOT_FOUND)
   }
-  const payload = await persistModelPayload(updateData)
-  const model = await PhoneModel.findOneAndUpdate({ _id: existing._id }, payload, {
-    new: true,
-    runValidators: true,
-  }).populate(phoneModelPopulate)
+
+  const fields = buildPhoneModelUpdateFields(updateData, existing)
+  if (!Object.keys(fields).length) {
+    throw new AppError('No valid fields to update', 400, errorCodes.BAD_REQUEST)
+  }
+
+  const payload = await persistModelPayload(fields)
+  const model = await PhoneModel.findByIdAndUpdate(
+    existing._id,
+    { $set: payload },
+    { new: true, runValidators: true },
+  ).populate(phoneModelPopulate)
 
   if (!model) {
     throw new AppError('Phone model not found', 404, errorCodes.NOT_FOUND)
   }
+
+  console.log(
+    `[PhoneModel] updated ${model._id} — modelName: ${model.modelName}, basePrice: ${model.basePrice}, deviceId: ${model.deviceId}`,
+  )
 
   return model
 }

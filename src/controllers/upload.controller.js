@@ -1,5 +1,5 @@
 import Busboy from 'busboy'
-import { logCloudinaryStatus } from '../config/cloudinary.js'
+import { cloudinary, logCloudinaryStatus, ensureCloudinaryConfigured } from '../config/cloudinary.js'
 import {
   getCloudinaryStatus,
   uploadStoreImage,
@@ -8,7 +8,7 @@ import {
   uploadStoreVideoFromStream,
   deleteStoreImage,
 } from '../services/cloudinary.service.js'
-import { CLOUDINARY_FOLDERS } from '../constants/cloudinaryFolders.js'
+import { CLOUDINARY_FOLDERS, normalizeUploadFolder } from '../constants/cloudinaryFolders.js'
 
 const VIDEO_UPLOAD_SOCKET_MS = 15 * 60 * 1000
 
@@ -161,6 +161,38 @@ export async function uploadVideoMultipart(req, res) {
     return res.status(status).json({ error: result.error })
   }
   return res.status(201).json(result)
+}
+
+/** Signed params so the browser can upload video directly to Cloudinary (bypasses nginx body limits on api.baskaro.com). */
+export async function getVideoUploadSignature(req, res) {
+  if (!ensureCloudinaryConfigured()) {
+    return res.status(503).json({
+      error:
+        'Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in backend .env',
+    })
+  }
+
+  const folder = normalizeUploadFolder(req.body?.folder || CLOUDINARY_FOLDERS.videos)
+  if (!folder) return res.status(400).json({ error: 'Invalid upload folder' })
+
+  const timestamp = Math.round(Date.now() / 1000)
+  // Sign only fields sent in the upload body. Do not include chunk_size — that
+  // enables Cloudinary's multi-request chunked protocol (Content-Range), which
+  // a single browser XHR cannot satisfy and stalls around ~5–10%.
+  const paramsToSign = { timestamp, folder }
+  const signature = cloudinary.utils.api_sign_request(
+    paramsToSign,
+    process.env.CLOUDINARY_API_SECRET,
+  )
+
+  return res.json({
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    timestamp,
+    signature,
+    folder,
+    uploadUrl: `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/video/upload`,
+  })
 }
 
 export async function removeImage(req, res) {

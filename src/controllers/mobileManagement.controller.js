@@ -81,7 +81,15 @@ export async function createPhoneModel(req, res) {
 
 export async function updatePhoneModel(req, res) {
   const { modelId } = req.params
-  const updateData = req.body
+  const updateData = req.body || {}
+  console.log(`[PhoneModel] PATCH /models/${modelId}`, {
+    keys: Object.keys(updateData),
+    modelName: updateData.modelName,
+    brandId: updateData.brandId,
+    deviceId: updateData.deviceId,
+    hasImage: Boolean(updateData.image),
+    imagesCount: Array.isArray(updateData.images) ? updateData.images.length : 0,
+  })
   const model = await mobileManagementService.updatePhoneModel(modelId, updateData)
   return successResponse(res, model, 'Phone model updated successfully')
 }

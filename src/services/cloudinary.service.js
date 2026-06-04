@@ -39,6 +39,8 @@ export async function getCloudinaryStatus() {
 const CLOUDINARY_IMAGE_STREAM_TIMEOUT_MS = 10 * 60 * 1000
 const CLOUDINARY_VIDEO_STREAM_TIMEOUT_MS = 15 * 60 * 1000
 const CLOUDINARY_VIDEO_CHUNK_BYTES = 6 * 1024 * 1024
+/** Server relay is only for small clips; large files must use browser → Cloudinary direct upload. */
+const MAX_VIDEO_SERVER_RELAY_BYTES = 12 * 1024 * 1024
 
 function uploadStreamToCloudinary(source, options, timeoutMs = CLOUDINARY_IMAGE_STREAM_TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
@@ -142,6 +144,12 @@ export async function uploadStoreVideoFromBuffer({ buffer, folder, publicId, mim
   if (!normalizedFolder) return { error: 'Invalid upload folder' }
 
   if (!buffer?.length) return { error: 'No video provided' }
+  if (buffer.length > MAX_VIDEO_SERVER_RELAY_BYTES) {
+    return {
+      error:
+        'Video is too large for server upload. Upload through the admin Media Manager (browser sends directly to Cloudinary).',
+    }
+  }
   if (buffer.length > MAX_VIDEO_UPLOAD_BYTES) {
     return { error: 'Video too large. Use a smaller file (max ~60MB).' }
   }

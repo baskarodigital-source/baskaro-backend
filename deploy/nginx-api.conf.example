@@ -1,0 +1,29 @@
+# Example nginx site block for api.baskaro.com
+# Copy to /etc/nginx/sites-available/ and symlink sites-enabled, then: sudo nginx -t && sudo systemctl reload nginx
+#
+# Without client_max_body_size, nginx returns 413 for video uploads and the browser
+# may also show a CORS error (no Access-Control-Allow-Origin on nginx error pages).
+
+server {
+    listen 443 ssl http2;
+    server_name api.baskaro.com;
+
+    # ssl_certificate ...;
+    # ssl_certificate_key ...;
+
+    client_max_body_size 64m;
+    client_body_timeout 900s;
+    proxy_read_timeout 900s;
+    proxy_connect_timeout 60s;
+    proxy_send_timeout 900s;
+
+    location / {
+        proxy_pass http://127.0.0.1:4001;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_request_buffering off;
+    }
+}
