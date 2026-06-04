@@ -110,6 +110,14 @@ export async function persistImagesArray(images, folder = CLOUDINARY_FOLDERS.inv
   return urls.filter(Boolean)
 }
 
+export async function persistVideosArray(videos, folder = CLOUDINARY_FOLDERS.videos) {
+  if (!Array.isArray(videos)) return []
+  const urls = await Promise.all(
+    videos.map((vid) => persistVideoToCloudinary(vid, folder)),
+  )
+  return urls.filter(Boolean)
+}
+
 /** Normalize common body fields before Mongo write */
 export async function persistImageFields(body, fieldMap) {
   if (!body || typeof body !== 'object') return body

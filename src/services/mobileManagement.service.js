@@ -9,6 +9,7 @@ import {
   persistImageToCloudinary,
   persistImagesArray,
   persistVideoToCloudinary,
+  persistVideosArray,
 } from '../utils/persistImageToCloudinary.js'
 
 async function persistBrandPayload(data) {
@@ -38,11 +39,18 @@ async function persistModelPayload(data) {
   if (Array.isArray(next.images)) {
     next.images = await persistImagesArray(next.images, CLOUDINARY_FOLDERS.models)
   }
-  const rawVideo = String(next.videoUrl ?? next.video ?? '').trim()
-  if (rawVideo) {
-    next.videoUrl = await persistVideoToCloudinary(rawVideo, CLOUDINARY_FOLDERS.videos)
+  if (Array.isArray(next.videoUrls) && next.videoUrls.length) {
+    next.videoUrls = await persistVideosArray(next.videoUrls, CLOUDINARY_FOLDERS.videos)
+    next.videoUrl = next.videoUrls[0] || ''
   } else {
-    next.videoUrl = ''
+    const rawVideo = String(next.videoUrl ?? next.video ?? '').trim()
+    if (rawVideo) {
+      next.videoUrl = await persistVideoToCloudinary(rawVideo, CLOUDINARY_FOLDERS.videos)
+      next.videoUrls = next.videoUrl ? [next.videoUrl] : []
+    } else {
+      next.videoUrl = ''
+      next.videoUrls = []
+    }
   }
   delete next.video
   return next

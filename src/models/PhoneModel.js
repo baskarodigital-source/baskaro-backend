@@ -27,6 +27,7 @@ const phoneModelSchema = new mongoose.Schema(
     image: { type: String, default: '' },
     images: [{ type: String, trim: true }],
     videoUrl: { type: String, default: '' },
+    videoUrls: [{ type: String, trim: true }],
     /** Dynamic spec bag; shape is driven by /api/specifications/:categoryId. */
     specifications: { type: mongoose.Schema.Types.Mixed, default: {} },
     releaseYear: { type: Number },
