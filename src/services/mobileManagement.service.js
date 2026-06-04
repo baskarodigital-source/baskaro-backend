@@ -5,7 +5,11 @@ import { PhoneModel } from '../models/PhoneModel.js'
 import { CLOUDINARY_FOLDERS } from '../constants/cloudinaryFolders.js'
 import { AppError, errorCodes } from '../utils/errorHandler.js'
 import { getPagination, formatPaginationResponse } from '../utils/helpers.js'
-import { persistImageToCloudinary } from '../utils/persistImageToCloudinary.js'
+import {
+  persistImageToCloudinary,
+  persistImagesArray,
+  persistVideoToCloudinary,
+} from '../utils/persistImageToCloudinary.js'
 
 async function persistBrandPayload(data) {
   const next = { ...data }
@@ -31,6 +35,16 @@ async function persistModelPayload(data) {
   if (next.imageUrl != null && String(next.imageUrl).trim()) {
     next.imageUrl = await persistImageToCloudinary(next.imageUrl, CLOUDINARY_FOLDERS.models)
   }
+  if (Array.isArray(next.images)) {
+    next.images = await persistImagesArray(next.images, CLOUDINARY_FOLDERS.models)
+  }
+  const rawVideo = String(next.videoUrl ?? next.video ?? '').trim()
+  if (rawVideo) {
+    next.videoUrl = await persistVideoToCloudinary(rawVideo, CLOUDINARY_FOLDERS.videos)
+  } else {
+    next.videoUrl = ''
+  }
+  delete next.video
   return next
 }
 

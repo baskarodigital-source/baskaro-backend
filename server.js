@@ -29,6 +29,12 @@ await RibbonCategory.syncIndexes()
 
 await logCloudinaryStatus({ ping: true })
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`API server listening on port ${PORT}`)
 })
+// Large video uploads: client send + Cloudinary relay can exceed Node’s default 5 min limit
+const UPLOAD_TIMEOUT_MS = 15 * 60 * 1000
+server.requestTimeout = UPLOAD_TIMEOUT_MS
+server.headersTimeout = UPLOAD_TIMEOUT_MS + 10_000
+server.timeout = UPLOAD_TIMEOUT_MS
+server.keepAliveTimeout = 65_000

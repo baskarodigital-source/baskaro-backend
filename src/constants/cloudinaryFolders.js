@@ -9,6 +9,7 @@ export const CLOUDINARY_FOLDERS = {
   brands: 'baskaro/brands',
   devices: 'baskaro/devices',
   models: 'baskaro/models',
+  videos: 'baskaro/videos',
   inventory: 'baskaro/inventory',
   cms: 'baskaro/cms',
 }

@@ -1,6 +1,6 @@
 import { CLOUDINARY_FOLDERS } from '../constants/cloudinaryFolders.js'
 import { isCloudinaryConfigured } from '../config/cloudinary.js'
-import { uploadStoreImage } from '../services/cloudinary.service.js'
+import { uploadStoreImage, uploadStoreVideo } from '../services/cloudinary.service.js'
 import { AppError, errorCodes } from './errorHandler.js'
 
 const LOG_PREFIX = '[Cloudinary]'
@@ -12,6 +12,7 @@ export function isCloudinaryUrl(url) {
 function toUploadSource(raw) {
   const t = String(raw ?? '').trim()
   if (!t || isCloudinaryUrl(t)) return null
+  if (t.startsWith('blob:')) return null
   if (t.startsWith('data:') || /^https?:\/\//i.test(t)) return t
   if (t.startsWith('/')) {
     const base =
@@ -41,7 +42,16 @@ export async function persistImageToCloudinary(raw, folder = CLOUDINARY_FOLDERS.
   }
 
   const source = toUploadSource(t)
-  if (!source) return t
+  if (!source) {
+    if (String(raw ?? '').trim().startsWith('blob:')) {
+      throw new AppError(
+        'Media was not uploaded to Cloudinary. Wait for uploads to finish before saving.',
+        400,
+        errorCodes.BAD_REQUEST,
+      )
+    }
+    return t
+  }
 
   const result = await uploadStoreImage({ file: source, folder })
   if (result.error) {
@@ -53,14 +63,51 @@ export async function persistImageToCloudinary(raw, folder = CLOUDINARY_FOLDERS.
   return result.url
 }
 
+/**
+ * Store any video reference in Cloudinary (data URL or remote URL).
+ * Already-Cloudinary URLs are returned unchanged.
+ */
+export async function persistVideoToCloudinary(raw, folder = CLOUDINARY_FOLDERS.videos) {
+  const t = String(raw ?? '').trim()
+  if (!t) return ''
+  if (isCloudinaryUrl(t)) return t
+
+  if (!isCloudinaryConfigured()) {
+    throw new AppError(
+      'Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET.',
+      503,
+      errorCodes.BAD_REQUEST,
+    )
+  }
+
+  const source = toUploadSource(t)
+  if (!source) {
+    if (String(raw ?? '').trim().startsWith('blob:')) {
+      throw new AppError(
+        'Video was not uploaded to Cloudinary. Wait for the upload to finish before saving.',
+        400,
+        errorCodes.BAD_REQUEST,
+      )
+    }
+    return t
+  }
+
+  const result = await uploadStoreVideo({ file: source, folder })
+  if (result.error) {
+    console.error(`${LOG_PREFIX} persist video failed (${folder}): ${result.error}`)
+    throw new AppError(result.error, 400, errorCodes.BAD_REQUEST)
+  }
+
+  console.log(`${LOG_PREFIX} persisted video → ${result.publicId}`)
+  return result.url
+}
+
 export async function persistImagesArray(images, folder = CLOUDINARY_FOLDERS.inventory) {
   if (!Array.isArray(images)) return []
-  const out = []
-  for (const img of images) {
-    const url = await persistImageToCloudinary(img, folder)
-    if (url) out.push(url)
-  }
-  return out
+  const urls = await Promise.all(
+    images.map((img) => persistImageToCloudinary(img, folder)),
+  )
+  return urls.filter(Boolean)
 }
 
 /** Normalize common body fields before Mongo write */

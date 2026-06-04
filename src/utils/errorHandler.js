@@ -93,6 +93,20 @@ export const errorHandler = (err, req, res, next) => {
     })
   }
 
+  if (err.type === 'entity.too.large') {
+    const isVideo = String(req.path || '').includes('/uploads/video')
+    return res.status(413).json({
+      success: false,
+      error: isVideo
+        ? 'Video is too large. Use a file under 50MB or compress it before uploading.'
+        : 'Request body is too large.',
+      message: isVideo
+        ? 'Video is too large. Use a file under 50MB or compress it before uploading.'
+        : 'Request body is too large.',
+      code: errorCodes.BAD_REQUEST,
+    })
+  }
+
   // Default error
   return res.status(500).json({
     success: false,

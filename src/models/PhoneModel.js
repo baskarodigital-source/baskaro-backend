@@ -12,6 +12,7 @@ const phoneModelSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'BrandDevice',
       default: null,
+      index: true,
     },
     modelName: { type: String, required: true, trim: true },
     slug: { type: String, required: true, trim: true, lowercase: true },
@@ -24,6 +25,8 @@ const phoneModelSchema = new mongoose.Schema(
     ],
     basePrice: { type: Number, required: true, min: 0 }, // Base price for the model
     image: { type: String, default: '' },
+    images: [{ type: String, trim: true }],
+    videoUrl: { type: String, default: '' },
     /** Dynamic spec bag; shape is driven by /api/specifications/:categoryId. */
     specifications: { type: mongoose.Schema.Types.Mixed, default: {} },
     releaseYear: { type: Number },
@@ -37,3 +40,5 @@ phoneModelSchema.index({ deviceId: 1 })
 phoneModelSchema.index({ slug: 1 })
 
 export const PhoneModel = mongoose.model('PhoneModel', phoneModelSchema)
+
+

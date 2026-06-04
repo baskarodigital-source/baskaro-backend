@@ -17,6 +17,7 @@ const corsAllowAll =
   process.env.CORS_ORIGIN === '*'
 
 const defaultOrigins = [
+  'http://localhost:3000',
   'http://localhost:3001',
   'http://localhost:5173',
   'http://127.0.0.1:3000',
@@ -64,6 +65,12 @@ const corsOptions = {
 app.use(cors(corsOptions))
 app.options('*', cors(corsOptions))
 
+// Legacy base64 video JSON only — skip multipart /video/file (multer handles that route)
+app.use('/api/uploads/video', (req, res, next) => {
+  const subPath = String(req.path || req.url || '').split('?')[0]
+  if (subPath === '/file' || subPath.endsWith('/file')) return next()
+  return express.json({ limit: '70mb' })(req, res, next)
+})
 app.use(express.json({ limit: '6mb' }))
 
 // Health routes
