@@ -3,6 +3,7 @@ import { Brand } from '../models/Brand.js'
 import { BrandDevice } from '../models/BrandDevice.js'
 import { PhoneModel } from '../models/PhoneModel.js'
 import { CLOUDINARY_FOLDERS } from '../constants/cloudinaryFolders.js'
+import { normalizeModelConditionGrades } from '../constants/modelConditionGrades.js'
 import { AppError, errorCodes } from '../utils/errorHandler.js'
 import { getPagination, formatPaginationResponse } from '../utils/helpers.js'
 import {
@@ -28,6 +29,50 @@ async function persistDevicePayload(data) {
   return next
 }
 
+function normalizeHexColor(hex) {
+  const h = String(hex || '').trim()
+  if (/^#[0-9A-Fa-f]{6}$/.test(h)) return h
+  if (/^#[0-9A-Fa-f]{3}$/.test(h)) return h
+  if (/^[0-9A-Fa-f]{6}$/.test(h)) return `#${h}`
+  return '#cccccc'
+}
+
+async function persistColorVariants(variants) {
+  if (!Array.isArray(variants)) return []
+  const out = []
+  for (const row of variants) {
+    const name = String(row?.name || '').trim()
+    const hex = normalizeHexColor(row?.hex)
+    if (!name) continue
+
+    const rawImages = []
+    const pushImg = (v) => {
+      const u = String(v || '').trim()
+      if (u) rawImages.push(u)
+    }
+    pushImg(row?.image)
+    if (Array.isArray(row?.images)) row.images.forEach(pushImg)
+
+    const images = []
+    const seen = new Set()
+    for (const raw of rawImages) {
+      if (seen.has(raw)) continue
+      seen.add(raw)
+      const url = await persistImageToCloudinary(raw, CLOUDINARY_FOLDERS.models)
+      if (url) images.push(url)
+    }
+    if (!images.length) continue
+
+    let videoUrls = []
+    if (Array.isArray(row?.videoUrls) && row.videoUrls.length) {
+      videoUrls = await persistVideosArray(row.videoUrls.filter(Boolean), CLOUDINARY_FOLDERS.videos)
+    }
+
+    out.push({ name, hex, image: images[0], images, videoUrls })
+  }
+  return out
+}
+
 async function persistModelPayload(data) {
   const next = { ...data }
   if (next.image != null && String(next.image).trim()) {
@@ -38,6 +83,12 @@ async function persistModelPayload(data) {
   }
   if (Array.isArray(next.images)) {
     next.images = await persistImagesArray(next.images, CLOUDINARY_FOLDERS.models)
+  }
+  if (next.colorVariants !== undefined) {
+    next.colorVariants = await persistColorVariants(next.colorVariants)
+  }
+  if (next.conditionGrades !== undefined) {
+    next.conditionGrades = normalizeModelConditionGrades(next.conditionGrades)
   }
   if (Array.isArray(next.videoUrls) && next.videoUrls.length) {
     next.videoUrls = await persistVideosArray(next.videoUrls, CLOUDINARY_FOLDERS.videos)
@@ -339,6 +390,9 @@ export async function createPhoneModel(modelData) {
     basePrice,
     slug,
   })
+  if (!payload.conditionGrades?.length) {
+    throw new AppError('At least one condition grade is required (Superb, Good, or Fair)', 400, errorCodes.VALIDATION_ERROR)
+  }
   const model = await PhoneModel.create(payload)
   await model.populate([
     { path: 'brandId', select: 'name slug' },
@@ -427,6 +481,17 @@ function buildPhoneModelUpdateFields(updateData, existing) {
   }
 
   if (updateData.active !== undefined) out.active = Boolean(updateData.active)
+
+  if (updateData.colorVariants !== undefined) {
+    out.colorVariants = Array.isArray(updateData.colorVariants) ? updateData.colorVariants : []
+  }
+
+  if (updateData.conditionGrades !== undefined) {
+    out.conditionGrades = normalizeModelConditionGrades(updateData.conditionGrades)
+    if (!out.conditionGrades.length) {
+      throw new AppError('At least one condition grade is required (Superb, Good, or Fair)', 400, errorCodes.VALIDATION_ERROR)
+    }
+  }
 
   return out
 }

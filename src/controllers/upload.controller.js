@@ -9,6 +9,7 @@ import {
   deleteStoreImage,
 } from '../services/cloudinary.service.js'
 import { CLOUDINARY_FOLDERS, normalizeUploadFolder } from '../constants/cloudinaryFolders.js'
+import { isImageBuffer, sniffImageMimeFromBuffer } from '../utils/imageBufferProbe.js'
 
 const VIDEO_UPLOAD_SOCKET_MS = 15 * 60 * 1000
 
@@ -123,18 +124,32 @@ export async function uploadImageMultipart(req, res) {
   if (!req.file?.buffer?.length) {
     return res.status(400).json({ error: 'No image file provided. Use field name "file".' })
   }
+  if (!isImageBuffer(req.file.buffer)) {
+    console.warn(
+      `[Upload] image/file rejected — not a valid image buffer (mimetype: ${req.file.mimetype || 'unknown'}, name: ${req.file.originalname || 'unknown'})`,
+    )
+    return res.status(400).json({
+      error: 'Invalid image file. Use JPG, PNG, or WEBP (rename with .jpg/.png if Windows hides the extension).',
+    })
+  }
   const folder = req.body?.folder
   const publicId = req.body?.publicId
+  const sniffedMime = sniffImageMimeFromBuffer(req.file.buffer)
+  console.log(
+    `[Upload] POST /image/file — ${req.file.buffer.length} bytes, folder: ${folder || '(default)'}, mimetype: ${req.file.mimetype || sniffedMime || 'unknown'}`,
+  )
   const result = await uploadStoreImageFromBuffer({
     buffer: req.file.buffer,
     folder,
     publicId,
-    mimetype: req.file.mimetype,
+    mimetype: sniffedMime || req.file.mimetype,
   })
   if (result.error) {
+    console.warn(`[Upload] image/file failed: ${result.error}`)
     const status = result.error.includes('not configured') ? 503 : 400
     return res.status(status).json({ error: result.error })
   }
+  console.log(`[Upload] image/file OK — ${result.url || result.secure_url || '(no url)'}`)
   return res.status(201).json(result)
 }
 

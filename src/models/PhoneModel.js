@@ -26,10 +26,25 @@ const phoneModelSchema = new mongoose.Schema(
     basePrice: { type: Number, required: true, min: 0 }, // Base price for the model
     image: { type: String, default: '' },
     images: [{ type: String, trim: true }],
+    /** Color switcher variants: name, hex swatch, per-color product image. */
+    colorVariants: [
+      {
+        name: { type: String, required: true, trim: true },
+        hex: { type: String, required: true, trim: true },
+        image: { type: String, required: true, trim: true },
+        images: [{ type: String, trim: true }],
+        videoUrls: [{ type: String, trim: true }],
+      },
+    ],
     videoUrl: { type: String, default: '' },
     videoUrls: [{ type: String, trim: true }],
     /** Dynamic spec bag; shape is driven by /api/specifications/:categoryId. */
     specifications: { type: mongoose.Schema.Types.Mixed, default: {} },
+    /** Customer-facing condition options for this listing (subset of Superb / Good / Fair). */
+    conditionGrades: {
+      type: [{ type: String, enum: ['Superb', 'Good', 'Fair'] }],
+      default: ['Superb', 'Good', 'Fair'],
+    },
     releaseYear: { type: Number },
     active: { type: Boolean, default: true },
   },

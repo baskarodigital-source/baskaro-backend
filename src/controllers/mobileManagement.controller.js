@@ -89,6 +89,13 @@ export async function updatePhoneModel(req, res) {
     deviceId: updateData.deviceId,
     hasImage: Boolean(updateData.image),
     imagesCount: Array.isArray(updateData.images) ? updateData.images.length : 0,
+    colorVariantsCount: Array.isArray(updateData.colorVariants) ? updateData.colorVariants.length : 0,
+    colorVariantImages: Array.isArray(updateData.colorVariants)
+      ? updateData.colorVariants.map((c) => ({
+          name: c?.name,
+          images: Array.isArray(c?.images) ? c.images.length : c?.image ? 1 : 0,
+        }))
+      : [],
   })
   const model = await mobileManagementService.updatePhoneModel(modelId, updateData)
   return successResponse(res, model, 'Phone model updated successfully')

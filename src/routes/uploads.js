@@ -8,6 +8,16 @@ const router = Router()
 
 router.get('/status', asyncHandler(uploadController.cloudinaryStatus))
 
+router.use((req, _res, next) => {
+  if (req.method === 'POST' || req.method === 'DELETE') {
+    const hasAuth = Boolean(req.headers.authorization)
+    console.log(
+      `[Upload] ${req.method} ${req.path} — auth: ${hasAuth ? 'present' : 'MISSING'}, content-type: ${String(req.headers['content-type'] || '').slice(0, 72)}`,
+    )
+  }
+  next()
+})
+
 router.use(requireAuth, requireAdmin)
 
 router.get('/ping', asyncHandler(uploadController.cloudinaryPing))

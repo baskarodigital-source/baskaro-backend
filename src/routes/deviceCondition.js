@@ -5,6 +5,7 @@ import * as deviceConditionController from '../controllers/deviceCondition.contr
 const router = Router()
 
 // Public routes (can be accessed without auth for price calculation)
+router.get('/active', deviceConditionController.listActivePublic)
 router.post('/calculate', deviceConditionController.calculateFinalPrice)
 
 // Admin routes

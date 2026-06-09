@@ -7,6 +7,12 @@ export async function getAllDeviceConditions(req, res) {
   return successResponse(res, data, 'Device conditions retrieved successfully')
 }
 
+/** Public: active condition grades for product pages (no auth). */
+export async function listActivePublic(req, res) {
+  const data = await deviceConditionService.getAllDeviceConditions()
+  return successResponse(res, data, 'Active device conditions retrieved successfully')
+}
+
 // Get device condition by type
 export async function getDeviceCondition(req, res) {
   const { conditionType } = req.params
