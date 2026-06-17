@@ -1,9 +1,9 @@
-import { RibbonCategory } from '../models/RibbonCategory.js'
+﻿import { RibbonCategory } from '../models/RibbonCategory.js'
 import { CLOUDINARY_FOLDERS } from '../constants/cloudinaryFolders.js'
 import { AppError, errorCodes } from '../utils/errorHandler.js'
 import { persistImageToCloudinary } from '../utils/persistImageToCloudinary.js'
 
-/** Legacy DB cleanup only — categories are created via admin API, not auto-seeded. */
+/** Legacy DB cleanup only â€” categories are created via admin API, not auto-seeded. */
 async function ensureRibbonIndexes() {
   await RibbonCategory.collection.dropIndex('slug_1').catch(() => {})
 }
@@ -27,6 +27,7 @@ export async function createRibbonCategory(body) {
   const storedImage = rawImage
     ? await persistImageToCloudinary(rawImage, CLOUDINARY_FOLDERS.ribbon)
     : ''
+  const { syncRibbonToCatalog } = await import('./catalogRibbonLink.service.js')
   const doc = await RibbonCategory.create({
     label: String(label).trim(),
     path: path != null ? String(path).trim() : '/marketplace',
@@ -35,6 +36,7 @@ export async function createRibbonCategory(body) {
     sortOrder: Number.isFinite(Number(sortOrder)) ? Number(sortOrder) : 0,
     isActive: isActive !== false,
   })
+  await syncRibbonToCatalog(doc._id).catch(() => {})
   return doc.toObject()
 }
 
@@ -54,6 +56,8 @@ export async function updateRibbonCategory(id, body) {
 
   const doc = await RibbonCategory.findByIdAndUpdate(id, updates, { new: true, runValidators: true })
   if (!doc) throw new AppError('Ribbon category not found', 404, errorCodes.NOT_FOUND)
+  const { syncRibbonToCatalog } = await import('./catalogRibbonLink.service.js')
+  await syncRibbonToCatalog(doc._id).catch(() => {})
   return doc.toObject()
 }
 
@@ -62,3 +66,4 @@ export async function deleteRibbonCategory(id) {
   if (!doc) throw new AppError('Ribbon category not found', 404, errorCodes.NOT_FOUND)
   return { ok: true }
 }
+

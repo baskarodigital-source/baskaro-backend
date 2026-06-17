@@ -6,6 +6,7 @@ import { connectDb } from './src/config/db.js'
 import { logCloudinaryStatus } from './src/config/cloudinary.js'
 import { app } from './src/app.js'
 import { RibbonCategory } from './src/models/RibbonCategory.js'
+import { startReservationCleanupScheduler } from './src/services/reservationCleanupScheduler.service.js'
 
 // Load env
 const candidatePaths = ['.env', 'src/.env']
@@ -26,6 +27,7 @@ console.log(process.env.MONGODB_URI)
 
 await connectDb()
 await RibbonCategory.syncIndexes()
+const stopReservationCleanup = startReservationCleanupScheduler()
 
 await logCloudinaryStatus({ ping: true })
 
@@ -38,3 +40,9 @@ server.requestTimeout = UPLOAD_TIMEOUT_MS
 server.headersTimeout = UPLOAD_TIMEOUT_MS + 10_000
 server.timeout = UPLOAD_TIMEOUT_MS
 server.keepAliveTimeout = 65_000
+
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, () => {
+    stopReservationCleanup()
+  })
+}

@@ -1,6 +1,6 @@
-import mongoose from 'mongoose'
+﻿import mongoose from 'mongoose'
 
-/** Homepage horizontal category ribbon — icons are Lucide keys (see frontend ICON_MAP). */
+/** Homepage horizontal category ribbon â€” icons are Lucide keys (see frontend ICON_MAP). */
 const RIBBON_ICON_KEYS = [
   'smartphone',
   'watch',
@@ -23,11 +23,18 @@ const ribbonCategorySchema = new mongoose.Schema(
     iconKey: { type: String, required: true, enum: RIBBON_ICON_KEYS },
     sortOrder: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
+    catalogCategoryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Category',
+      default: null,
+    },
   },
   { timestamps: true },
 )
 
 ribbonCategorySchema.index({ isActive: 1, sortOrder: 1 })
+ribbonCategorySchema.index({ catalogCategoryId: 1 }, { sparse: true })
 
 export const RibbonCategory = mongoose.model('RibbonCategory', ribbonCategorySchema)
 export { RIBBON_ICON_KEYS }
+

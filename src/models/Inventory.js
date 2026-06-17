@@ -1,4 +1,4 @@
-import mongoose from 'mongoose'
+﻿import mongoose from 'mongoose'
 
 const inventorySchema = new mongoose.Schema(
   {
@@ -28,6 +28,8 @@ const inventorySchema = new mongoose.Schema(
     images: [String],
     isSold: { type: Boolean, default: false },
     soldAt: { type: Date },
+    reservedUntil: { type: Date },
+    reservedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   },
   { timestamps: true },
 )
@@ -36,5 +38,6 @@ inventorySchema.index({ modelId: 1 })
 inventorySchema.index({ brandId: 1 })
 inventorySchema.index({ conditionGrade: 1 })
 inventorySchema.index({ isSold: 1 })
+inventorySchema.index({ reservedUntil: 1 })
 
 export const Inventory = mongoose.model('Inventory', inventorySchema)

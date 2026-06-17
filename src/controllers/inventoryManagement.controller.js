@@ -1,5 +1,6 @@
 import { successResponse } from '../utils/helpers.js'
 import * as inventoryManagementService from '../services/inventoryManagement.service.js'
+import { mapPublicInventory } from '../utils/mapPublicInventory.js'
 import { AppError, errorCodes } from '../utils/errorHandler.js'
 
 // Add to inventory
@@ -20,7 +21,10 @@ export async function getAllInventory(req, res) {
 export async function getInventoryById(req, res) {
   const { inventoryId } = req.params
   const item = await inventoryManagementService.getInventoryById(inventoryId)
-  return successResponse(res, item, 'Inventory item retrieved successfully')
+  const mapped = mapPublicInventory(item.toObject ? item.toObject() : item, {
+    viewerUserId: req.user?.userId,
+  })
+  return successResponse(res, mapped, 'Inventory item retrieved successfully')
 }
 
 // Update inventory stock

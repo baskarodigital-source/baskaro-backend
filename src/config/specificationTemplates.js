@@ -12,6 +12,7 @@
 
 export const SPEC_TEMPLATES_BY_CATEGORY = {
   smartphones: [
+    { key: 'storage', name: 'Storage', type: 'text', required: false },
     { key: 'display', name: 'Display', type: 'text', required: true },
     { key: 'processor', name: 'Processor', type: 'text', required: true },
     { key: 'camera', name: 'Camera', type: 'text' },

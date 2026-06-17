@@ -1,12 +1,12 @@
 import { Router } from 'express'
-import { requireAuth, requireAdmin } from '../middleware/auth.js'
+import { requireAuth, requireAdmin, optionalAuth } from '../middleware/auth.js'
 import * as inventoryManagementController from '../controllers/inventoryManagement.controller.js'
 
 const router = Router()
 
 // Public routes (view inventory)
-router.get('/', inventoryManagementController.getAllInventory)
-router.get('/:inventoryId', inventoryManagementController.getInventoryById)
+router.get('/', optionalAuth, inventoryManagementController.getAllInventory)
+router.get('/:inventoryId', optionalAuth, inventoryManagementController.getInventoryById)
 
 // Admin-only routes
 router.use(requireAuth)

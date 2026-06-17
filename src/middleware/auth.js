@@ -10,7 +10,16 @@ function normalizeAuthPayload(payload) {
     else if (next.role && ADMIN_ROLES.includes(next.role)) next.accountType = 'admin'
     else next.accountType = 'user'
   }
+  // Admin tokens use `adminId`; customer routes expect `userId`.
+  if (!next.userId && next.adminId) next.userId = next.adminId
   return next
+}
+
+/** Resolved Mongo id for the signed-in account (customer or admin). */
+export function getAuthUserId(req) {
+  const u = req.user
+  if (!u) return null
+  return u.userId || u.adminId || null
 }
 
 export function requireAuth(req, res, next) {
@@ -25,6 +34,21 @@ export function requireAuth(req, res, next) {
   } catch (e) {
     return res.status(401).json({ error: 'Invalid auth token' })
   }
+}
+
+/** Sets req.user when a valid Bearer token is present; never rejects. */
+export function optionalAuth(req, res, next) {
+  const header = req.headers.authorization || ''
+  const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : null
+  if (!token) return next()
+
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret')
+    req.user = normalizeAuthPayload(payload)
+  } catch {
+    /* ignore invalid optional token */
+  }
+  return next()
 }
 
 export function requireAdmin(req, res, next) {

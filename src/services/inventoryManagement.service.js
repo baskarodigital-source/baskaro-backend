@@ -36,7 +36,11 @@ export async function getAllInventory({
   if (brandId) query.brandId = brandId
   if (modelId) query.modelId = modelId
   if (conditionGrade) query.conditionGrade = conditionGrade
-  if (isSold !== null) query.isSold = isSold
+  if (isSold !== null && isSold !== undefined && isSold !== '') {
+    const raw = String(isSold).toLowerCase()
+    if (raw === 'true') query.isSold = true
+    else if (raw === 'false') query.isSold = false
+  }
   
   const skip = (parseInt(page) - 1) * parseInt(limit)
   

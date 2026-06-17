@@ -1,5 +1,7 @@
-import express from 'express'
+﻿import express from 'express'
 import cors from 'cors'
+import { asyncHandler } from './utils/asyncHandler.js'
+import { razorpayWebhook } from './controllers/razorpay.controller.js'
 
 export const app = express()
 
@@ -19,13 +21,20 @@ const corsAllowAll =
 const defaultOrigins = [
   'http://localhost:3000',
   'http://localhost:3001',
+  'http://localhost:3002',
   'http://localhost:5173',
   'http://127.0.0.1:3000',
+  'http://127.0.0.1:3001',
+  'http://127.0.0.1:3002',
   'http://127.0.0.1:5173',
   'https://baskaro-frontend.vercel.app',
   'https://baskaro.com',
   'https://www.baskaro.com'
 ]
+
+/** Vite dev server on localhost (auto-increments port when 3000 is busy). */
+const LOCALHOST_DEV_ORIGIN =
+  /^http:\/\/(localhost|127\.0\.0\.1):(30\d{2}|5173|4173)$/
 
 const allowedOrigins = new Set([
   ...defaultOrigins,
@@ -35,9 +44,9 @@ const allowedOrigins = new Set([
 /** Any *.baskaro.com over HTTPS (apex, www, subdomains) */
 const BASKARO_SITE_ORIGIN = /^https:\/\/([\w-]+\.)*baskaro\.com$/
 
-/** Vite / dev server on LAN IP (phone on Wi‑Fi, --host) — same machine as API on 127.0.0.1 */
+/** Vite / dev server on LAN IP (phone on Wiâ€‘Fi, --host) â€” same machine as API on 127.0.0.1 */
 const LAN_DEV_ORIGIN =
-  /^http:\/\/(192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(:(3000|5173|4173))?$/
+  /^http:\/\/(192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(:(30\d{2}|5173|4173))?$/
 
 const isAllowedOrigin = (origin) => {
   if (!origin) return true // curl/Postman/mobile apps
@@ -45,6 +54,7 @@ const isAllowedOrigin = (origin) => {
   if (allowedOrigins.has(origin)) return true
   if (BASKARO_SITE_ORIGIN.test(origin)) return true
   if (/^https:\/\/baskaro-frontend[-\w]*\.vercel\.app$/.test(origin)) return true
+  if (LOCALHOST_DEV_ORIGIN.test(origin)) return true
   if (LAN_DEV_ORIGIN.test(origin)) return true
   return false
 }
@@ -65,7 +75,14 @@ const corsOptions = {
 app.use(cors(corsOptions))
 app.options('*', cors(corsOptions))
 
-// Legacy base64 video JSON only — skip multipart /video/file (multer handles that route)
+// Razorpay webhook must receive the raw body for signature verification
+app.post(
+  '/api/payments/razorpay/webhook',
+  express.raw({ type: 'application/json' }),
+  asyncHandler(razorpayWebhook),
+)
+
+// Legacy base64 video JSON only â€” skip multipart /video/file (multer handles that route)
 app.use('/api/uploads/video', (req, res, next) => {
   const subPath = String(req.path || req.url || '').split('?')[0]
   if (subPath === '/file' || subPath.endsWith('/file')) return next()
@@ -104,6 +121,12 @@ import offersRouter from './routes/offers.js'
 import servicePageContentRouter from './routes/servicePageContent.js'
 import preOwnedFeaturedRouter from './routes/preOwnedFeatured.js'
 import uploadsRouter from './routes/uploads.js'
+import cartRouter from './routes/cart.js'
+import razorpayRouter from './routes/razorpay.js'
+import categoriesRouter from './routes/categories.js'
+import attributesRouter from './routes/attributes.js'
+import productsRouter from './routes/products.js'
+import specificationsRouter from './routes/specifications.js'
 
 app.use('/api/catalog', catalogRouter)
 app.use('/api/auth', authRouter)
@@ -131,6 +154,12 @@ app.use('/api/offers', offersRouter)
 app.use('/api/service-page', servicePageContentRouter)
 app.use('/api/pre-owned', preOwnedFeaturedRouter)
 app.use('/api/uploads', uploadsRouter)
+app.use('/api/cart', cartRouter)
+app.use('/api/payments/razorpay', razorpayRouter)
+app.use('/api/categories', categoriesRouter)
+app.use('/api/attributes', attributesRouter)
+app.use('/api/products', productsRouter)
+app.use('/api/specifications', specificationsRouter)
 
 // Error handler
 import { errorHandler } from './utils/errorHandler.js'

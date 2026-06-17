@@ -24,6 +24,14 @@ function isVideoMultipartFile(mime, filename) {
   return mimeOk || extOk
 }
 
+function resolveUploadErrorStatus(message, fallback = 400) {
+  const msg = String(message || '').toLowerCase()
+  if (!msg) return fallback
+  if (msg.includes('not configured')) return 503
+  if (msg.includes('too large')) return 413
+  return fallback
+}
+
 function parseVideoMultipartStream(req) {
   return new Promise((resolve, reject) => {
     const bb = Busboy({
@@ -34,6 +42,20 @@ function parseVideoMultipartStream(req) {
     let folder = CLOUDINARY_FOLDERS.videos
     let publicId
     let uploadPromise = null
+    let settled = false
+    let fileReceived = false
+
+    const finishResolve = (value) => {
+      if (settled) return
+      settled = true
+      resolve(value)
+    }
+
+    const finishReject = (error) => {
+      if (settled) return
+      settled = true
+      reject(error)
+    }
 
     bb.on('field', (name, val) => {
       if (name === 'folder') folder = val
@@ -50,32 +72,44 @@ function parseVideoMultipartStream(req) {
         return
       }
 
+      fileReceived = true
       const mime = info.mimeType || ''
       if (!isVideoMultipartFile(mime, info.filename)) {
         stream.resume()
-        reject(new Error('Invalid video format. Use MP4, MOV, or WEBM.'))
+        finishReject(new Error('Invalid video format. Use MP4, MOV, or WEBM.'))
+        return
+      }
+
+      stream.on('limit', () => {
+        finishReject(new Error('Video is too large. Use a file under 50MB or compress it before uploading.'))
+      })
+
+      const normalizedFolder = normalizeUploadFolder(folder || CLOUDINARY_FOLDERS.videos)
+      if (!normalizedFolder) {
+        stream.resume()
+        finishReject(new Error('Invalid upload folder'))
         return
       }
 
       uploadPromise = uploadStoreVideoFromStream({
         stream,
-        folder,
+        folder: normalizedFolder,
         publicId,
         mimetype: mime,
       })
     })
 
-    bb.on('error', reject)
+    bb.on('error', finishReject)
 
     bb.on('close', async () => {
       try {
-        if (!uploadPromise) {
-          reject(new Error('No video file provided. Use field name "file".'))
+        if (!fileReceived || !uploadPromise) {
+          finishReject(new Error('No video file provided. Use field name "file".'))
           return
         }
-        resolve(await uploadPromise)
+        finishResolve(await uploadPromise)
       } catch (err) {
-        reject(err)
+        finishReject(err)
       }
     })
 
@@ -86,7 +120,7 @@ function parseVideoMultipartStream(req) {
 export async function cloudinaryStatus(_req, res) {
   const status = await getCloudinaryStatus()
   console.log(
-    `[Cloudinary] status check — configured: ${status.configured}, connected: ${status.connected}${
+    `[Cloudinary] status check -> configured: ${status.configured}, connected: ${status.connected}${
       status.cloudName ? `, cloud: ${status.cloudName}` : ''
     }${status.error ? `, error: ${status.error}` : ''}`,
   )
@@ -101,59 +135,75 @@ export async function cloudinaryPing(_req, res) {
 
 export async function uploadImage(req, res) {
   const { file, folder, publicId } = req.body || {}
-  const result = await uploadStoreImage({ file, folder, publicId })
+  const normalizedFolder = normalizeUploadFolder(folder)
+  if (!normalizedFolder) {
+    return res.status(400).json({ error: 'Invalid upload folder' })
+  }
+
+  const result = await uploadStoreImage({ file, folder: normalizedFolder, publicId })
   if (result.error) {
-    const status = result.error.includes('not configured') ? 503 : 400
-    return res.status(status).json({ error: result.error })
+    return res.status(resolveUploadErrorStatus(result.error)).json({ error: result.error })
   }
   return res.status(201).json(result)
 }
 
 export async function uploadVideo(req, res) {
   const { file, folder = CLOUDINARY_FOLDERS.videos, publicId } = req.body || {}
-  const result = await uploadStoreVideo({ file, folder, publicId })
+  const normalizedFolder = normalizeUploadFolder(folder)
+  if (!normalizedFolder) {
+    return res.status(400).json({ error: 'Invalid upload folder' })
+  }
+
+  const result = await uploadStoreVideo({ file, folder: normalizedFolder, publicId })
   if (result.error) {
-    const status = result.error.includes('not configured') ? 503 : 400
-    return res.status(status).json({ error: result.error })
+    return res.status(resolveUploadErrorStatus(result.error)).json({ error: result.error })
   }
   return res.status(201).json(result)
 }
 
-/** Multipart image — binary stream to Cloudinary (fast, no base64 JSON). */
+/** Multipart image -> binary stream to Cloudinary (fast, no base64 JSON). */
 export async function uploadImageMultipart(req, res) {
   if (!req.file?.buffer?.length) {
     return res.status(400).json({ error: 'No image file provided. Use field name "file".' })
   }
   if (!isImageBuffer(req.file.buffer)) {
     console.warn(
-      `[Upload] image/file rejected — not a valid image buffer (mimetype: ${req.file.mimetype || 'unknown'}, name: ${req.file.originalname || 'unknown'})`,
+      `[Upload] image/file rejected -> not a valid image buffer (mimetype: ${req.file.mimetype || 'unknown'}, name: ${req.file.originalname || 'unknown'})`,
     )
     return res.status(400).json({
       error: 'Invalid image file. Use JPG, PNG, or WEBP (rename with .jpg/.png if Windows hides the extension).',
     })
   }
+
   const folder = req.body?.folder
+  const normalizedFolder = normalizeUploadFolder(folder)
+  if (!normalizedFolder) {
+    return res.status(400).json({ error: 'Invalid upload folder' })
+  }
+
   const publicId = req.body?.publicId
   const sniffedMime = sniffImageMimeFromBuffer(req.file.buffer)
   console.log(
-    `[Upload] POST /image/file — ${req.file.buffer.length} bytes, folder: ${folder || '(default)'}, mimetype: ${req.file.mimetype || sniffedMime || 'unknown'}`,
+    `[Upload] POST /image/file -> ${req.file.buffer.length} bytes, folder: ${normalizedFolder}, mimetype: ${req.file.mimetype || sniffedMime || 'unknown'}`,
   )
+
   const result = await uploadStoreImageFromBuffer({
     buffer: req.file.buffer,
-    folder,
+    folder: normalizedFolder,
     publicId,
     mimetype: sniffedMime || req.file.mimetype,
   })
+
   if (result.error) {
     console.warn(`[Upload] image/file failed: ${result.error}`)
-    const status = result.error.includes('not configured') ? 503 : 400
-    return res.status(status).json({ error: result.error })
+    return res.status(resolveUploadErrorStatus(result.error)).json({ error: result.error })
   }
-  console.log(`[Upload] image/file OK — ${result.url || result.secure_url || '(no url)'}`)
+
+  console.log(`[Upload] image/file OK -> ${result.url || result.secure_url || '(no url)'}`)
   return res.status(201).json(result)
 }
 
-/** Multipart video — pipe upload stream to Cloudinary (no full-file RAM buffer). */
+/** Multipart video -> pipe upload stream to Cloudinary (no full-file RAM buffer). */
 export async function uploadVideoMultipart(req, res) {
   extendUploadSocketTimeout(req)
 
@@ -167,13 +217,11 @@ export async function uploadVideoMultipart(req, res) {
     result = await parseVideoMultipartStream(req)
   } catch (err) {
     const msg = err?.message || 'Video upload failed'
-    const status = /too large/i.test(msg) ? 413 : 400
-    return res.status(status).json({ error: msg })
+    return res.status(resolveUploadErrorStatus(msg, 400)).json({ error: msg })
   }
 
   if (result.error) {
-    const status = result.error.includes('not configured') ? 503 : 400
-    return res.status(status).json({ error: result.error })
+    return res.status(resolveUploadErrorStatus(result.error)).json({ error: result.error })
   }
   return res.status(201).json(result)
 }
@@ -191,9 +239,9 @@ export async function getVideoUploadSignature(req, res) {
   if (!folder) return res.status(400).json({ error: 'Invalid upload folder' })
 
   const timestamp = Math.round(Date.now() / 1000)
-  // Sign only fields sent in the upload body. Do not include chunk_size — that
+  // Sign only fields sent in the upload body. Do not include chunk_size - that
   // enables Cloudinary's multi-request chunked protocol (Content-Range), which
-  // a single browser XHR cannot satisfy and stalls around ~5–10%.
+  // a single browser XHR cannot satisfy and stalls around ~5-10%.
   const paramsToSign = { timestamp, folder }
   const signature = cloudinary.utils.api_sign_request(
     paramsToSign,
@@ -212,10 +260,13 @@ export async function getVideoUploadSignature(req, res) {
 
 export async function removeImage(req, res) {
   const { publicId } = req.body || {}
+  if (!String(publicId || '').trim()) {
+    return res.status(400).json({ error: 'publicId is required' })
+  }
+
   const result = await deleteStoreImage(publicId)
   if (result.error) {
-    const status = result.error.includes('not configured') ? 503 : 400
-    return res.status(status).json({ error: result.error })
+    return res.status(resolveUploadErrorStatus(result.error)).json({ error: result.error })
   }
   return res.json(result)
 }
