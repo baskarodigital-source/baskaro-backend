@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import { BuyPayment } from '../models/BuyPayment.js'
 import { getBuyOrderById, markBuyOrderPaid } from './buyOrders.service.js'
 import { confirmInventorySale } from './inventoryReservation.service.js'
+import { confirmCatalogVariantSale } from './products.service.js'
 import { sendBuyOrderConfirmation } from './orderNotification.service.js'
 import { AppError, errorCodes } from '../utils/errorHandler.js'
 
@@ -138,7 +139,11 @@ export async function completeBuyPayment({
   const order = await markBuyOrderPaid(payment.purchaseOrderId, `Payment captured via ${source}`)
 
   for (const line of order.lineItems) {
-    await confirmInventorySale(line.inventoryId)
+    if (line.inventoryId) {
+      await confirmInventorySale(line.inventoryId)
+    } else if (line.productId) {
+      await confirmCatalogVariantSale(line.productId, line.variantId)
+    }
   }
 
   // Non-blocking business notification layer (email/SMS); failures are logged only.

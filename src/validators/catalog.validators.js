@@ -30,6 +30,14 @@ const productAttributeSchema = Joi.object({
   value: Joi.alternatives().try(Joi.string(), Joi.number(), Joi.boolean(), Joi.array(), Joi.valid(null)),
 })
 
+const colorVariantSchema = Joi.object({
+  name: Joi.string().trim().min(1).max(80).required(),
+  hex: Joi.string().trim().max(7).allow(''),
+  image: Joi.string().trim().max(2048).allow(''),
+  images: Joi.array().items(Joi.string().trim().max(2048)).default([]),
+  videoUrls: Joi.array().items(Joi.string().trim().max(2048)).default([]),
+})
+
 const variantSchema = Joi.object({
   sku: Joi.string().trim().max(80).allow(''),
   title: Joi.string().trim().max(180).allow(''),
@@ -137,6 +145,9 @@ export const createProductSchema = Joi.object({
   brand: Joi.string().trim().max(120).allow(''),
   tags: Joi.array().items(Joi.string().trim().max(80)).default([]),
   attributes: Joi.array().items(productAttributeSchema).default([]),
+  specifications: Joi.object().default({}),
+  conditionGrades: Joi.array().items(Joi.string().trim().valid('Superb', 'Good', 'Fair')).default([]),
+  colorVariants: Joi.array().items(colorVariantSchema).default([]),
   images: Joi.array().items(imageSchema).default([]),
   variants: Joi.array().items(variantSchema).min(1).required(),
   seo: seoSchema.default({}),
@@ -156,6 +167,9 @@ export const updateProductSchema = Joi.object({
   brand: Joi.string().trim().max(120).allow(''),
   tags: Joi.array().items(Joi.string().trim().max(80)),
   attributes: Joi.array().items(productAttributeSchema),
+  specifications: Joi.object(),
+  conditionGrades: Joi.array().items(Joi.string().trim().valid('Superb', 'Good', 'Fair')),
+  colorVariants: Joi.array().items(colorVariantSchema),
   images: Joi.array().items(imageSchema),
   variants: Joi.array().items(variantSchema).min(1),
   seo: seoSchema,

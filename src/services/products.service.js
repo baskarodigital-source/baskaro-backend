@@ -4,6 +4,7 @@ import { formatPaginationResponse } from '../utils/helpers.js'
 
 import * as ProductModelModule from '../models/Product.js'
 import * as CategoryModelModule from '../models/Category.js'
+import { normalizeModelConditionGrades } from '../constants/modelConditionGrades.js'
 
 const Product = ProductModelModule.Product || ProductModelModule.default || ProductModelModule
 const Category = CategoryModelModule.Category || CategoryModelModule.default || CategoryModelModule
@@ -89,7 +90,47 @@ function normalizeProductInput(payload = {}) {
     seo: payload.seo,
     isFeatured: payload.isFeatured != null ? Boolean(payload.isFeatured) : undefined,
     isActive: payload.isActive != null ? Boolean(payload.isActive) : undefined,
+    specifications:
+      payload.specifications != null && typeof payload.specifications === 'object'
+        ? payload.specifications
+        : undefined,
+    conditionGrades:
+      payload.conditionGrades !== undefined
+        ? normalizeModelConditionGrades(payload.conditionGrades)
+        : undefined,
+    colorVariants: Array.isArray(payload.colorVariants) ? payload.colorVariants : undefined,
   }
+}
+
+function normalizeColorVariants(rows) {
+  if (!Array.isArray(rows)) return []
+  return rows
+    .map((row) => {
+      const name = String(row?.name || '').trim()
+      if (!name) return null
+      const images = []
+      const seen = new Set()
+      const push = (url) => {
+        const u = String(url || '').trim()
+        if (!u || seen.has(u)) return
+        seen.add(u)
+        images.push(u)
+      }
+      push(row?.image)
+      if (Array.isArray(row?.images)) row.images.forEach(push)
+      if (!images.length) return null
+      const videoUrls = Array.isArray(row?.videoUrls)
+        ? row.videoUrls.map((v) => String(v || '').trim()).filter(Boolean)
+        : []
+      return {
+        name,
+        hex: String(row?.hex || '').trim(),
+        image: images[0],
+        images,
+        videoUrls,
+      }
+    })
+    .filter(Boolean)
 }
 
 export async function listProducts({
@@ -162,6 +203,9 @@ export async function createProduct(payload = {}) {
   }
 
   input = await resolveBrandAndDevice(input)
+  if (input.colorVariants !== undefined) {
+    input.colorVariants = normalizeColorVariants(input.colorVariants)
+  }
   Object.keys(input).forEach((key) => input[key] === undefined && delete input[key])
 
   const created = await Product.create(input)
@@ -192,6 +236,9 @@ export async function updateProduct(id, payload = {}) {
     input.brand = resolved.brand
   }
 
+  if (input.colorVariants !== undefined) {
+    input.colorVariants = normalizeColorVariants(input.colorVariants)
+  }
   Object.keys(input).forEach((key) => input[key] === undefined && delete input[key])
 
   const updated = await Product.findByIdAndUpdate(id, { $set: input }, { new: true, runValidators: true })
@@ -204,4 +251,34 @@ export async function deleteProduct(id) {
   const deleted = await Product.findByIdAndDelete(id)
   if (!deleted) throw new AppError('Product not found', 404, errorCodes.NOT_FOUND)
   return { success: true }
+}
+
+function pickVariantForSale(product, variantId) {
+  const variants = Array.isArray(product?.variants) ? product.variants : []
+  const active = variants.filter((v) => v?.isActive !== false)
+  const vid = variantId ? String(variantId) : ''
+  if (vid) {
+    const match =
+      active.find((v) => String(v._id) === vid) || variants.find((v) => String(v._id) === vid)
+    if (match) return match
+  }
+  return active.find((v) => v?.isDefault) || active[0] || variants[0] || null
+}
+
+/** Decrement catalog variant stock after successful payment. */
+export async function confirmCatalogVariantSale(productId, variantId) {
+  ensureObjectId(productId, 'productId')
+  const product = await Product.findById(productId)
+  if (!product || product.isActive === false) {
+    throw new AppError('Product not found', 404, errorCodes.NOT_FOUND)
+  }
+
+  const variant = pickVariantForSale(product, variantId)
+  if (!variant || !(Number(variant.stock) > 0)) {
+    throw new AppError('Product variant is out of stock', 409, errorCodes.CONFLICT)
+  }
+
+  variant.stock = Math.max(0, Number(variant.stock) - 1)
+  await product.save()
+  return { productId: product._id, variantId: variant._id, stock: variant.stock }
 }

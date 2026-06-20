@@ -50,6 +50,17 @@ const variantSchema = new mongoose.Schema(
   { _id: true },
 )
 
+const colorVariantSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true, maxlength: 80 },
+    hex: { type: String, trim: true, maxlength: 7, default: '' },
+    image: { type: String, trim: true, maxlength: 2048, default: '' },
+    images: { type: [String], default: [] },
+    videoUrls: { type: [String], default: [] },
+  },
+  { _id: false },
+)
+
 const seoSchema = new mongoose.Schema(
   {
     title: { type: String, trim: true, maxlength: 120, default: '' },
@@ -72,6 +83,9 @@ const productSchema = new mongoose.Schema(
     brand: { type: String, trim: true, maxlength: 120, default: '' },
     tags: { type: [String], default: [] },
     attributes: { type: [productAttributeValueSchema], default: [] },
+    specifications: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
+    conditionGrades: { type: [String], default: [] },
+    colorVariants: { type: [colorVariantSchema], default: [] },
     images: { type: [imageSchema], default: [] },
     variants: {
       type: [variantSchema],

@@ -15,7 +15,16 @@ const lineItemSchema = new mongoose.Schema(
     inventoryId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Inventory',
-      required: true,
+      default: null,
+    },
+    productId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Product',
+      default: null,
+    },
+    variantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
     },
     modelId: { type: mongoose.Schema.Types.ObjectId, ref: 'PhoneModel' },
     brandId: { type: mongoose.Schema.Types.ObjectId, ref: 'Brand' },
@@ -27,6 +36,13 @@ const lineItemSchema = new mongoose.Schema(
   },
   { _id: false },
 )
+
+lineItemSchema.pre('validate', function requireLineRef(next) {
+  if (!this.inventoryId && !this.productId) {
+    this.invalidate('inventoryId', 'Either inventoryId or productId is required')
+  }
+  next()
+})
 
 const statusHistorySchema = new mongoose.Schema(
   {

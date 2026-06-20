@@ -52,16 +52,30 @@ export async function createBuyOrder(userId, body) {
   const cart = await assertCartReservations(userId)
   const address = await resolveAddress(userId, body)
 
-  for (const item of cart.items) {
+  const inventoryItems = cart.items.filter((i) => i.inventoryId)
+  for (const item of inventoryItems) {
     await extendReservation(item.inventoryId, userId, CHECKOUT_RESERVATION_TTL_MS)
   }
 
-  const inventoryRows = await Inventory.find({
-    _id: { $in: cart.items.map((i) => i.inventoryId) },
-  }).lean()
+  const inventoryIds = inventoryItems.map((i) => i.inventoryId)
+  const inventoryRows = inventoryIds.length
+    ? await Inventory.find({ _id: { $in: inventoryIds } }).lean()
+    : []
   const invById = new Map(inventoryRows.map((r) => [String(r._id), r]))
 
   const lineItems = cart.items.map((item) => {
+    if (item.productId) {
+      return {
+        productId: item.productId,
+        variantId: item.variantId || null,
+        title: item.title,
+        imageUrl: item.imageUrl,
+        conditionGrade: item.conditionGrade,
+        unitPriceInr: item.unitPriceInr,
+        quantity: item.quantity || 1,
+      }
+    }
+
     const inv = invById.get(String(item.inventoryId))
     return {
       inventoryId: item.inventoryId,

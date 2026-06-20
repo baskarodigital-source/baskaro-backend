@@ -6,6 +6,7 @@ import {
   releaseReservation,
   reserveInventory,
 } from './inventoryReservation.service.js'
+import { Product } from '../models/Product.js'
 import { mapPublicInventory } from '../utils/mapPublicInventory.js'
 import { AppError, errorCodes } from '../utils/errorHandler.js'
 
@@ -21,9 +22,51 @@ function pickImage(inventory) {
   return String(inventory.modelId?.image || '')
 }
 
+function pickCatalogVariant(product, variantId = '') {
+  const variants = Array.isArray(product?.variants) ? product.variants : []
+  const active = variants.filter((v) => v?.isActive !== false)
+  if (variantId) {
+    const match =
+      active.find((v) => String(v._id) === String(variantId)) ||
+      variants.find((v) => String(v._id) === String(variantId))
+    if (match) return match
+  }
+  return active.find((v) => v?.isDefault) || active[0] || variants[0] || null
+}
+
+function pickCatalogImage(product, variant) {
+  const variantImg = Array.isArray(variant?.images) ? variant.images.find((i) => i?.url)?.url : ''
+  if (variantImg) return String(variantImg).trim()
+  const productImg = Array.isArray(product?.images) ? product.images.find((i) => i?.url)?.url : ''
+  if (productImg) return String(productImg).trim()
+  return ''
+}
+
 function mapCartItem(item, viewerUserId) {
+  if (item.productId) {
+    const lineId = item.variantId ? String(item.variantId) : String(item.productId)
+    return {
+      productId: String(item.productId),
+      variantId: item.variantId ? String(item.variantId) : '',
+      inventoryId: null,
+      itemType: 'catalog',
+      quantity: item.quantity,
+      unitPriceInr: item.unitPriceInr,
+      title: item.title,
+      imageUrl: item.imageUrl,
+      conditionGrade: item.conditionGrade,
+      id: lineId,
+      name: item.title,
+      price: String(item.unitPriceInr),
+      img: item.imageUrl,
+      reservedByYou: false,
+      viewerUserId,
+    }
+  }
+
   return {
     inventoryId: String(item.inventoryId),
+    itemType: 'inventory',
     quantity: item.quantity,
     unitPriceInr: item.unitPriceInr,
     title: item.title,
@@ -56,6 +99,49 @@ export async function getCartForUser(userId) {
     subtotalInr,
     itemCount: items.length,
   }
+}
+
+export async function addCatalogProductToCart(userId, productId, variantId = '') {
+  if (!mongoose.Types.ObjectId.isValid(productId)) {
+    throw new AppError('Invalid productId', 400, errorCodes.BAD_REQUEST)
+  }
+
+  const product = await Product.findById(productId).lean()
+  if (!product || product.isActive === false) {
+    throw new AppError('Product not found', 404, errorCodes.NOT_FOUND)
+  }
+
+  const variant = pickCatalogVariant(product, variantId)
+  if (!variant) {
+    throw new AppError('No purchasable variant for this product', 400, errorCodes.BAD_REQUEST)
+  }
+  if (!(Number(variant.stock) > 0)) {
+    throw new AppError('This product is out of stock', 409, errorCodes.CONFLICT)
+  }
+
+  const cart = await getOrCreateCart(userId)
+  const vid = variant._id ? String(variant._id) : ''
+  const existing = cart.items.find(
+    (i) => String(i.productId) === String(productId) && String(i.variantId || '') === vid,
+  )
+  if (existing) {
+    return getCartForUser(userId)
+  }
+
+  const title = [product.name, variant.title].filter(Boolean).join(' — ') || product.name
+  const line = {
+    productId: product._id,
+    variantId: variant._id || null,
+    quantity: 1,
+    unitPriceInr: Math.round(Number(variant.price) || 0),
+    title,
+    imageUrl: pickCatalogImage(product, variant),
+    conditionGrade: String(variant.condition || '').trim(),
+  }
+
+  cart.items.push(line)
+  await cart.save()
+  return getCartForUser(userId)
 }
 
 export async function addInventoryToCart(userId, inventoryId) {
@@ -106,7 +192,9 @@ export async function clearCartForUser(userId) {
   if (!cart) return { items: [], subtotalInr: 0, itemCount: 0 }
 
   for (const item of cart.items) {
-    await releaseReservation(item.inventoryId, userId)
+    if (item.inventoryId) {
+      await releaseReservation(item.inventoryId, userId)
+    }
   }
 
   cart.items = []
@@ -121,17 +209,38 @@ export async function assertCartReservations(userId) {
     throw new AppError('Your cart is empty', 400, errorCodes.BAD_REQUEST)
   }
 
-  const inventoryIds = cart.items.map((i) => i.inventoryId)
-  const rows = await Inventory.find({ _id: { $in: inventoryIds } }).lean()
+  const inventoryItems = cart.items.filter((i) => i.inventoryId)
+  const inventoryIds = inventoryItems.map((i) => i.inventoryId)
+  const rows = inventoryIds.length
+    ? await Inventory.find({ _id: { $in: inventoryIds } }).lean()
+    : []
 
   const byId = new Map(rows.map((r) => [String(r._id), r]))
-  for (const item of cart.items) {
+  for (const item of inventoryItems) {
     const row = byId.get(String(item.inventoryId))
     if (!row || row.isSold || row.stock <= 0) {
       throw new AppError(`"${item.title}" is no longer available`, 409, errorCodes.CONFLICT)
     }
     if (!isReservedByUser(row, userId)) {
       throw new AppError(`Reservation expired for "${item.title}". Please add it again.`, 409, errorCodes.CONFLICT)
+    }
+  }
+
+  const catalogItems = cart.items.filter((i) => i.productId)
+  if (catalogItems.length) {
+    const productIds = [...new Set(catalogItems.map((i) => String(i.productId)))]
+    const products = await Product.find({ _id: { $in: productIds } }).lean()
+    const productsById = new Map(products.map((p) => [String(p._id), p]))
+
+    for (const item of catalogItems) {
+      const product = productsById.get(String(item.productId))
+      if (!product || product.isActive === false) {
+        throw new AppError(`"${item.title}" is no longer available`, 409, errorCodes.CONFLICT)
+      }
+      const variant = pickCatalogVariant(product, item.variantId)
+      if (!variant || !(Number(variant.stock) > 0)) {
+        throw new AppError(`"${item.title}" is out of stock`, 409, errorCodes.CONFLICT)
+      }
     }
   }
 

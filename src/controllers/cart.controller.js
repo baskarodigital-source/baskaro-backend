@@ -19,10 +19,21 @@ export async function getCart(req, res) {
 
 export async function addCartItem(req, res) {
   const userId = requireUserId(req)
-  const { inventoryId } = req.body || {}
-  if (!inventoryId) {
-    return res.status(400).json({ success: false, message: 'inventoryId is required', code: 'BAD_REQUEST' })
+  const { inventoryId, productId, variantId } = req.body || {}
+
+  if (productId) {
+    const data = await cartService.addCatalogProductToCart(userId, productId, variantId)
+    return successResponse(res, data, 'Item added to cart', 201)
   }
+
+  if (!inventoryId) {
+    return res.status(400).json({
+      success: false,
+      message: 'inventoryId or productId is required',
+      code: 'BAD_REQUEST',
+    })
+  }
+
   const data = await cartService.addInventoryToCart(userId, inventoryId)
   return successResponse(res, data, 'Item added to cart', 201)
 }

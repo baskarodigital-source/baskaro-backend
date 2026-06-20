@@ -2,14 +2,14 @@ import { successResponse } from '../utils/helpers.js'
 import * as offerService from '../services/offer.service.js'
 
 export async function listPublic(req, res) {
-  const { modelId = '' } = req.query
-  const offers = await offerService.listActiveOffers({ modelId })
+  const { modelId = '', productId = '' } = req.query
+  const offers = await offerService.listActiveOffers({ modelId, productId })
   return successResponse(res, offers, 'Offers retrieved successfully')
 }
 
 export async function listAll(req, res) {
-  const { page = 1, limit = 100, modelId = '' } = req.query
-  const data = await offerService.listAllOffers({ page, limit, modelId })
+  const { page = 1, limit = 100, modelId = '', productId = '' } = req.query
+  const data = await offerService.listAllOffers({ page, limit, modelId, productId })
   return successResponse(res, data, 'Offers retrieved successfully')
 }
 

@@ -18,20 +18,32 @@ function normalizeModelId(modelId) {
   return new mongoose.Types.ObjectId(s)
 }
 
-export async function listActiveOffers({ modelId } = {}) {
+function normalizeProductId(productId) {
+  if (!productId) return null
+  const s = String(productId).trim()
+  if (!s) return null
+  if (!mongoose.Types.ObjectId.isValid(s)) {
+    throw new AppError('Invalid productId', 400, errorCodes.BAD_REQUEST)
+  }
+  return new mongoose.Types.ObjectId(s)
+}
+
+export async function listActiveOffers({ modelId, productId } = {}) {
   const mId = normalizeModelId(modelId)
   const q = { isActive: true }
   if (mId) q.$or = [{ modelId: null }, { modelId: mId }]
   return Offer.find(q).sort({ sortOrder: 1, createdAt: -1 }).lean()
 }
 
-export async function listAllOffers({ page = 1, limit = 100, modelId = '' } = {}) {
+export async function listAllOffers({ page = 1, limit = 100, modelId = '', productId = '' } = {}) {
   const p = Math.max(1, parseInt(page, 10) || 1)
   const l = Math.min(200, Math.max(1, parseInt(limit, 10) || 100))
   const skip = (p - 1) * l
   const mId = modelId ? normalizeModelId(modelId) : null
+  const pId = productId ? normalizeProductId(productId) : null
   const q = {}
-  if (mId) q.modelId = mId
+  if (pId) q.productId = pId
+  else if (mId) q.modelId = mId
 
   const [items, total] = await Promise.all([
     Offer.find(q).sort({ sortOrder: 1, createdAt: -1 }).skip(skip).limit(l).lean(),
@@ -60,6 +72,7 @@ export async function createOffer(body) {
     desc,
     code: normalizeCode(body?.code),
     modelId: normalizeModelId(body?.modelId),
+    productId: normalizeProductId(body?.productId),
     sortOrder: Number(body?.sortOrder) || 0,
     isActive: body?.isActive !== false,
   })
@@ -78,6 +91,7 @@ export async function updateOffer(id, body) {
   if (body.desc != null) update.desc = String(body.desc).trim()
   if (body.code !== undefined) update.code = normalizeCode(body.code)
   if (body.modelId !== undefined) update.modelId = normalizeModelId(body.modelId)
+  if (body.productId !== undefined) update.productId = normalizeProductId(body.productId)
   if (body.sortOrder != null) update.sortOrder = Number(body.sortOrder) || 0
   if (body.isActive != null) update.isActive = Boolean(body.isActive)
 
