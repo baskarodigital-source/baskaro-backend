@@ -114,11 +114,14 @@ import couponManagementRouter from './routes/couponManagement.js'
 import bannerManagementRouter from './routes/bannerManagement.js'
 import reportsAnalyticsRouter from './routes/reportsAnalytics.js'
 import ribbonCategoryRouter from './routes/ribbonCategory.js'
+import sellNavRouter from './routes/sellNav.js'
 import deviceSpecificationsRouter from './routes/deviceSpecifications.js'
 import flashDealRouter from './routes/flashDeal.js'
 import homeServicesRouter from './routes/homeServices.js'
 import offersRouter from './routes/offers.js'
 import servicePageContentRouter from './routes/servicePageContent.js'
+import cmsRouter from './routes/cms.js'
+import storeLocationsRouter from './routes/storeLocations.js'
 import preOwnedFeaturedRouter from './routes/preOwnedFeatured.js'
 import uploadsRouter from './routes/uploads.js'
 import cartRouter from './routes/cart.js'
@@ -147,11 +150,14 @@ app.use('/api/coupons', couponManagementRouter)
 app.use('/api/banners', bannerManagementRouter)
 app.use('/api/reports', reportsAnalyticsRouter)
 app.use('/api/ribbon-categories', ribbonCategoryRouter)
+app.use('/api/sell-nav', sellNavRouter)
 app.use('/api/device-specifications', deviceSpecificationsRouter)
 app.use('/api/flash-deals', flashDealRouter)
 app.use('/api/home-services', homeServicesRouter)
 app.use('/api/offers', offersRouter)
 app.use('/api/service-page', servicePageContentRouter)
+app.use('/api/cms', cmsRouter)
+app.use('/api/store-locations', storeLocationsRouter)
 app.use('/api/pre-owned', preOwnedFeaturedRouter)
 app.use('/api/uploads', uploadsRouter)
 app.use('/api/cart', cartRouter)
