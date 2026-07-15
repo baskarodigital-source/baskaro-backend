@@ -107,6 +107,33 @@ async function persistModelPayload(data) {
   return next
 }
 
+function normalizeStorageVariants(rows, { fallbackBasePrice } = {}) {
+  if (!Array.isArray(rows)) return undefined
+  const fallback = Number(fallbackBasePrice)
+  const out = []
+  for (const row of rows) {
+    const label = String(row?.label || '').trim()
+    if (!label) continue
+    const basePrice = Number(row?.basePrice)
+    const price =
+      Number.isFinite(basePrice) && basePrice >= 0
+        ? basePrice
+        : Number.isFinite(fallback) && fallback >= 0
+          ? fallback
+          : NaN
+    if (!Number.isFinite(price) || price < 0) {
+      throw new AppError(
+        `storageVariants entry "${label}" needs a valid basePrice`,
+        400,
+        errorCodes.VALIDATION_ERROR,
+      )
+    }
+    const ram = String(row?.ram || '').trim() || '—'
+    out.push({ label, basePrice: price, ram })
+  }
+  return out
+}
+
 function slugify(input) {
   const s = String(input || '')
     .trim()
@@ -384,11 +411,15 @@ export async function createPhoneModel(modelData) {
     slug = `${preferredSlug}-${i}`
   }
 
+  const storageVariants = normalizeStorageVariants(modelData?.storageVariants, {
+    fallbackBasePrice: basePrice,
+  })
   const payload = await persistModelPayload({
     ...modelData,
     modelName,
     basePrice,
     slug,
+    ...(storageVariants !== undefined ? { storageVariants } : {}),
   })
   if (!payload.conditionGrades?.length) {
     throw new AppError('At least one condition grade is required (Superb, Good, or Fair)', 400, errorCodes.VALIDATION_ERROR)
@@ -428,18 +459,33 @@ function buildPhoneModelUpdateFields(updateData, existing) {
     out.modelName = modelName
   }
 
+  if (updateData.storageVariants !== undefined) {
+    const normalized = normalizeStorageVariants(updateData.storageVariants, {
+      fallbackBasePrice: updateData.basePrice != null ? updateData.basePrice : existingPlain?.basePrice,
+    })
+    out.storageVariants = Array.isArray(normalized) ? normalized : []
+    if (out.storageVariants.length && updateData.basePrice == null) {
+      const prices = out.storageVariants
+        .map((v) => Number(v.basePrice))
+        .filter((n) => Number.isFinite(n) && n >= 0)
+      if (prices.length) out.basePrice = Math.min(...prices)
+    }
+  }
+
   if (updateData.basePrice != null) {
     const basePrice = Number(updateData.basePrice)
     if (!Number.isFinite(basePrice) || basePrice <= 0) {
       throw new AppError('basePrice must be a positive number', 400, errorCodes.VALIDATION_ERROR)
     }
     out.basePrice = basePrice
-    const variants = Array.isArray(existingPlain?.storageVariants) ? existingPlain.storageVariants : []
-    if (variants.length) {
-      out.storageVariants = variants.map((v, idx) => {
-        const row = typeof v?.toObject === 'function' ? v.toObject() : { ...v }
-        return idx === 0 ? { ...row, basePrice } : row
-      })
+    if (updateData.storageVariants === undefined) {
+      const variants = Array.isArray(existingPlain?.storageVariants) ? existingPlain.storageVariants : []
+      if (variants.length) {
+        out.storageVariants = variants.map((v, idx) => {
+          const row = typeof v?.toObject === 'function' ? v.toObject() : { ...v }
+          return idx === 0 ? { ...row, basePrice } : row
+        })
+      }
     }
   }
 
